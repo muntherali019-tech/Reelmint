@@ -1,0 +1,57 @@
+# Render Blueprint — deploys Reelmint as a web service + a managed Postgres.
+# In Render: New → Blueprint → connect this repo → Apply.
+databases:
+  - name: reelmint-db
+    plan: free
+    databaseName: reelmint
+    user: reelmint
+
+services:
+  - type: web
+    name: reelmint
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # Durable account/credit storage — auto-filled from the database above.
+      # Remove this block to fall back to the local JSON file instead.
+      - key: DATABASE_URL
+        fromDatabase:
+          name: reelmint-db
+          property: connectionString
+      # Paste this in the Render dashboard (secret — not stored in the repo).
+      # Without it the app still runs in a built-in demo mode.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Optional overrides:
+      - key: AI_MODEL
+        value: claude-opus-4-8
+      # Optional: set to "1" to remove the free-tier watermark globally.
+      - key: REELMINT_NO_WATERMARK
+        sync: false
+      # Signs login tokens — set a long random string (Render can generate one).
+      - key: AUTH_SECRET
+        generateValue: true
+      # Photoreal images (optional): set IMAGE_PROVIDER=openai + OPENAI_API_KEY,
+      # or use a custom endpoint via IMAGE_API_URL.
+      - key: IMAGE_PROVIDER
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: IMAGE_API_URL
+        sync: false
+      - key: IMAGE_API_KEY
+        sync: false
+      # Billing (optional): Stripe keys + price IDs + webhook secret.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_CREATOR
+        sync: false
+      - key: STRIPE_PRICE_STUDIO
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false

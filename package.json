@@ -1,0 +1,19 @@
+{
+  "name": "reelmint",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reelmint — AI studio that mints short & long videos, images and copy from a single prompt, with a voice/text AI editor.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.71.0",
+    "express": "^4.19.2",
+    "pg": "^8.13.1"
+  }
+}

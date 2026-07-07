@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0E1116" />
+    <title>Reelmint — Mint videos, images & copy from one prompt</title>
+    <meta
+      name="description"
+      content="Reelmint is the AI studio that mints short & long-form videos, scroll-stopping images and copy from a single prompt — with a voice-or-text AI editor, scan & repurpose, and one-click export."
+    />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%235B8CFF'/%3E%3Ctext x='50' y='70' font-size='60' text-anchor='middle' fill='white' font-family='Arial'%3ER%3C/text%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="#top">
+        <span class="logo">◉</span> Reelmint
+      </a>
+      <nav class="nav-links">
+        <a href="#studio">Studio</a>
+        <a href="#features">Features</a>
+        <a href="#pricing">Pricing</a>
+        <a class="btn btn-ghost" id="statusPill" href="#studio">●</a>
+        <button class="btn btn-ghost" id="accountBtn">Sign in</button>
+        <a class="btn btn-primary" href="#studio">Open studio</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <!-- HERO -->
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">AI video • image • copy studio</p>
+          <h1>Mint a video from a single prompt.</h1>
+          <p class="sub">
+            Type or <em>speak</em> an idea. Reelmint writes the script, designs every
+            frame, voices it, and exports a ready-to-post video — short or long.
+            Then keep editing just by telling it what to change.
+          </p>
+          <div class="hero-cta">
+            <a class="btn btn-primary btn-lg" href="#studio">Start minting — free</a>
+            <a class="btn btn-ghost btn-lg" href="#features">See features</a>
+          </div>
+          <p class="trust">No card needed · Works in your browser · Export in one click</p>
+        </div>
+        <div class="hero-art" aria-hidden="true">
+          <div class="phone">
+            <div class="phone-screen" id="heroScreen"></div>
+            <div class="phone-cap">▶ minting…</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- STUDIO -->
+      <section id="studio" class="studio">
+        <div class="studio-head">
+          <h2>The Studio</h2>
+          <div class="tabs" id="tabs">
+            <button class="tab active" data-tab="create">🎬 Create</button>
+            <button class="tab" data-tab="editor">🪄 AI Editor</button>
+            <button class="tab" data-tab="image">🖼 Image</button>
+            <button class="tab" data-tab="scan">📷 Scan</button>
+            <button class="tab" data-tab="repurpose">✂️ Repurpose</button>
+          </div>
+        </div>
+
+        <!-- CREATE -->
+        <div class="panel active" data-panel="create">
+          <div class="panel-grid">
+            <div class="controls card">
+              <label class="field">
+                <span>Your idea</span>
+                <textarea id="topic" rows="3" placeholder="e.g. 3 morning habits that doubled my focus"></textarea>
+              </label>
+              <div class="row">
+                <label class="field">
+                  <span>Platform</span>
+                  <select id="platform">
+                    <option value="tiktok">TikTok</option>
+                    <option value="reels">Instagram Reels</option>
+                    <option value="shorts">YouTube Shorts</option>
+                    <option value="youtube">YouTube (long)</option>
+                    <option value="linkedin">LinkedIn</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>Tone</span>
+                  <select id="tone">
+                    <option value="energetic">Energetic</option>
+                    <option value="calm">Calm</option>
+                    <option value="bold">Bold</option>
+                    <option value="luxury">Luxury</option>
+                    <option value="funny">Funny</option>
+                    <option value="educational">Educational</option>
+                  </select>
+                </label>
+              </div>
+              <label class="field">
+                <span>Length: <b id="durLabel">30s</b></span>
+                <input id="duration" type="range" min="15" max="180" step="5" value="30" />
+              </label>
+              <button class="btn btn-primary btn-block" id="genBtn">✨ Generate storyboard</button>
+              <p class="hint" id="createHint"></p>
+            </div>
+
+            <div class="preview card">
+              <div class="player">
+                <canvas id="stage" width="540" height="960"></canvas>
+                <div class="player-bar">
+                  <button class="btn btn-ghost" id="playBtn">▶ Preview</button>
+                  <button class="btn btn-ghost" id="exportBtn">⬇ Export video</button>
+                  <button class="btn btn-ghost" id="pngBtn">⬇ Frame PNG</button>
+                </div>
+              </div>
+              <div class="storyboard" id="storyboard"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI EDITOR -->
+        <div class="panel" data-panel="editor">
+          <div class="card editor">
+            <p class="muted">Tell Reelmint what to change — by typing or speaking. It rewrites the storyboard live.</p>
+            <div class="chat" id="chat"></div>
+            <div class="composer">
+              <button class="btn btn-ghost" id="micBtn" title="Speak">🎤</button>
+              <input id="instruction" placeholder="“Make scene 2 funnier and add a CTA at the end”" />
+              <button class="btn btn-primary" id="sendBtn">Send</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- IMAGE -->
+        <div class="panel" data-panel="image">
+          <div class="panel-grid">
+            <div class="controls card">
+              <label class="field">
+                <span>Describe the image / poster</span>
+                <textarea id="imgPrompt" rows="3" placeholder="e.g. neon quote card: 'Discipline beats motivation'"></textarea>
+              </label>
+              <label class="field">
+                <span>Style</span>
+                <select id="imgStyle">
+                  <option value="bold">Bold</option>
+                  <option value="minimal">Minimal</option>
+                  <option value="neon">Neon</option>
+                  <option value="editorial">Editorial</option>
+                </select>
+              </label>
+              <button class="btn btn-primary btn-block" id="imgBtn">🖼 Generate image</button>
+            </div>
+            <div class="preview card center">
+              <canvas id="imgStage" width="600" height="600"></canvas>
+              <button class="btn btn-ghost" id="imgDownload">⬇ Download PNG</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SCAN -->
+        <div class="panel" data-panel="scan">
+          <div class="card">
+            <p class="muted">Upload a screenshot, photo, whiteboard or doc — Reelmint reads it and repurposes it into content.</p>
+            <div class="row">
+              <input type="file" id="scanFile" accept="image/*" />
+              <input id="scanInstruction" placeholder="What should I do with it? (default: 3 captions)" />
+            </div>
+            <button class="btn btn-primary" id="scanBtn">📷 Scan & repurpose</button>
+            <pre class="output" id="scanOut"></pre>
+          </div>
+        </div>
+
+        <!-- REPURPOSE -->
+        <div class="panel" data-panel="repurpose">
+          <div class="card">
+            <p class="muted">Paste a long transcript or article — get the most clip-worthy moments.</p>
+            <textarea id="transcript" rows="6" placeholder="Paste your transcript…"></textarea>
+            <button class="btn btn-primary" id="repBtn">✂️ Find viral clips</button>
+            <div class="clips" id="clips"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- FEATURES -->
+      <section id="features" class="features">
+        <h2>Everything you need to go viral</h2>
+        <div class="feature-grid" id="featureGrid"></div>
+      </section>
+
+      <!-- PRICING -->
+      <section id="pricing" class="pricing">
+        <h2>Simple pricing that scales with you</h2>
+        <div class="plans" id="plans"></div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>◉ Reelmint</span>
+      <span class="muted">Built for creators. Mint something today.</span>
+    </footer>
+
+    <!-- AUTH MODAL -->
+    <div class="modal" id="authModal" hidden>
+      <div class="modal-card">
+        <button class="modal-x" id="authClose">✕</button>
+        <h3 id="authTitle">Sign in to Reelmint</h3>
+        <p class="muted" id="authSub">Sign in to track credits and upgrade your plan.</p>
+        <label class="field"><span>Email</span><input id="authEmail" type="email" placeholder="you@email.com" /></label>
+        <label class="field"><span>Password</span><input id="authPass" type="password" placeholder="••••••" /></label>
+        <button class="btn btn-primary btn-block" id="authSubmit">Sign in</button>
+        <p class="hint" id="authError"></p>
+        <p class="muted switch-line">
+          <span id="authSwitchText">New here?</span>
+          <a href="#" id="authSwitch">Create an account</a>
+        </p>
+      </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+    <script src="/app.js"></script>
+  </body>
+</html>
