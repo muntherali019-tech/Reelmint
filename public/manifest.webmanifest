@@ -1,0 +1,16 @@
+{
+  "name": "Reelmint — AI video, image & copy studio",
+  "short_name": "Reelmint",
+  "description": "Mint short & long videos, images and copy from a single prompt, with a voice-or-text AI editor.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0E1116",
+  "theme_color": "#0E1116",
+  "categories": ["productivity", "photo", "video"],
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

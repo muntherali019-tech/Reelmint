@@ -106,7 +106,7 @@ export function publicUser(user) {
 export async function signup(email, password, refCode) {
   email = String(email || "").trim().toLowerCase();
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Invalid email");
-  if (String(password || "").length < 6) throw new Error("Password too short (min 6)");
+  if (String(password || "").length < 8) throw new Error("Password too short (min 8)");
   if (await getUser(email)) throw new Error("Account already exists");
 
   // Resolve an inbound referral code to the referring user (self-referral is a no-op).

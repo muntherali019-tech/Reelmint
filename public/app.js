@@ -31,6 +31,13 @@ const PALETTES = [
 ];
 
 // ---------- boot ----------
+// Register the service worker so Reelmint is installable and shell-cached offline.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () =>
+    navigator.serviceWorker.register("/sw.js").catch(() => {})
+  );
+}
+
 init();
 async function init() {
   try {

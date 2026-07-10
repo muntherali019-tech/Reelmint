@@ -27,6 +27,7 @@ import {
 import { catalog, findProduct, PLANS } from "./products.js";
 import { generateImage, imageProvider } from "./images.js";
 import { initStore, backend } from "./store.js";
+import { securityHeaders, cors, rateLimit } from "./security.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
@@ -34,6 +35,11 @@ const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const app = express();
 // Behind Render's proxy — trust it so req.protocol is https (used in checkout URLs).
 app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
+// Security headers + optional cross-origin allowlist on every response.
+app.use(securityHeaders);
+app.use(cors);
 
 // Wrap async handlers so a rejected promise becomes a clean 500 instead of a
 // hung request (Express 4 does not catch async errors on its own).
@@ -52,6 +58,11 @@ app.post(
 app.use(express.json({ limit: "20mb" }));
 app.use(attachUser);
 app.use(express.static(PUBLIC_DIR));
+
+// Rate limiters — protect the expensive AI routes and the auth surface.
+// Generous enough for real use, tight enough to blunt abuse and credential stuffing.
+const aiLimit = rateLimit({ windowMs: 60 * 1000, max: 30 }); // 30 generations / min / IP
+const authLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }); // 20 auth attempts / 15 min / IP
 
 const NO_WATERMARK = process.env.REELMINT_NO_WATERMARK === "1";
 
@@ -82,14 +93,14 @@ app.get("/api/config", (req, res) => {
 app.get("/api/products", (_req, res) => res.json(catalog()));
 
 // ---------- accounts ----------
-app.post("/api/auth/signup", async (req, res) => {
+app.post("/api/auth/signup", authLimit, async (req, res) => {
   try {
     res.json(await signup(req.body?.email, req.body?.password, req.body?.ref));
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
 });
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", authLimit, async (req, res) => {
   try {
     res.json(await login(req.body?.email, req.body?.password));
   } catch (e) {
@@ -145,7 +156,7 @@ app.get("/api/referral", (req, res) => {
 });
 
 // ---------- storyboard / video script (costs 1 credit) ----------
-app.post("/api/script", wrap(async (req, res) => {
+app.post("/api/script", aiLimit, wrap(async (req, res) => {
   const {
     topic = "",
     platform = "tiktok",
@@ -198,7 +209,7 @@ ${schema}`,
 }));
 
 // ---------- AI editor assistant (voice or text instructions) ----------
-app.post("/api/assistant", wrap(async (req, res) => {
+app.post("/api/assistant", aiLimit, wrap(async (req, res) => {
   const { instruction = "", storyboard = null } = req.body || {};
   if (!instruction.trim())
     return res.status(400).json({ error: "instruction is required" });
@@ -229,7 +240,7 @@ Return JSON: { "reply": string, "storyboard": { "title": string, "hook": string,
 }));
 
 // ---------- picture / poster ----------
-app.post("/api/image", wrap(async (req, res) => {
+app.post("/api/image", aiLimit, wrap(async (req, res) => {
   const { prompt = "", style = "bold" } = req.body || {};
   if (!prompt.trim()) return res.status(400).json({ error: "prompt is required" });
 
@@ -258,7 +269,7 @@ Return JSON: { "headline": string, "subline": string, "palette": {"bg": string, 
 }));
 
 // ---------- scan & upload (vision) ----------
-app.post("/api/scan", async (req, res) => {
+app.post("/api/scan", aiLimit, async (req, res) => {
   const {
     base64 = "",
     mediaType = "image/png",
@@ -274,7 +285,7 @@ app.post("/api/scan", async (req, res) => {
 });
 
 // ---------- repurpose long-form into clips ----------
-app.post("/api/repurpose", wrap(async (req, res) => {
+app.post("/api/repurpose", aiLimit, wrap(async (req, res) => {
   const { transcript = "", count = 4 } = req.body || {};
   if (!transcript.trim())
     return res.status(400).json({ error: "transcript is required" });
@@ -292,7 +303,7 @@ Return JSON: { "clips": [{ "title": string, "hook": string, "quote": string, "ha
 }));
 
 // ---------- copy / captions ----------
-app.post("/api/captions", wrap(async (req, res) => {
+app.post("/api/captions", aiLimit, wrap(async (req, res) => {
   const { topic = "", platform = "instagram", count = 6 } = req.body || {};
   if (!topic.trim()) return res.status(400).json({ error: "topic is required" });
   const text = await generateText({

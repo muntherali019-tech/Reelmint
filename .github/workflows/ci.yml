@@ -20,12 +20,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Audit dependencies (fail on high/critical)
+        run: npm audit --audit-level=high
+
       - name: Syntax-check all JS
         run: |
-          for f in server/*.js public/app.js; do
+          for f in server/*.js public/app.js public/sw.js; do
             echo "checking $f"
             node --check "$f"
           done
+
+      - name: Unit tests
+        run: npm test
 
       - name: Smoke-test server (demo mode)
         run: |
