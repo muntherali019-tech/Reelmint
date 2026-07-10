@@ -20,6 +20,7 @@
       <nav class="nav-links">
         <a href="#studio">Studio</a>
         <a href="#features">Features</a>
+        <a href="#store">Store</a>
         <a href="#pricing">Pricing</a>
         <a class="btn btn-ghost" id="statusPill" href="#studio">●</a>
         <button class="btn btn-ghost" id="accountBtn">Sign in</button>
@@ -191,6 +192,46 @@
       <section id="pricing" class="pricing">
         <h2>Simple pricing that scales with you</h2>
         <div class="plans" id="plans"></div>
+      </section>
+
+      <!-- STORE -->
+      <section id="store" class="store">
+        <h2>Top up & shop the marketplace</h2>
+        <p class="section-sub">
+          Out of credits? Grab a pay-as-you-go pack — no subscription. Or unlock a
+          premium, ready-to-mint template pack built by top creators.
+        </p>
+
+        <h3 class="store-h">⚡ Credit packs</h3>
+        <p class="store-note">One-time top-ups. Credits never expire.</p>
+        <div class="store-grid" id="creditPacks"></div>
+
+        <h3 class="store-h">🧩 Add-ons</h3>
+        <p class="store-note">Bolt extra power onto any plan.</p>
+        <div class="store-grid" id="addOns"></div>
+
+        <h3 class="store-h">🛍 Template Marketplace</h3>
+        <p class="store-note">Premium storyboard &amp; brand packs. Buy once, mint forever.</p>
+        <div class="store-grid market" id="templates"></div>
+      </section>
+
+      <!-- REFERRAL -->
+      <section id="referral" class="referral">
+        <div class="referral-card card">
+          <div class="referral-copy">
+            <h2>Give 25 credits, get 25 credits</h2>
+            <p class="muted">
+              Share your link. When a friend signs up, you <b>both</b> get 25 free
+              render credits — instantly.
+            </p>
+            <div class="referral-row" id="referralRow">
+              <input id="referralLink" readonly placeholder="Sign in to get your link" />
+              <button class="btn btn-primary" id="referralCopy">Copy link</button>
+            </div>
+            <p class="hint" id="referralStats"></p>
+          </div>
+          <div class="referral-badge" aria-hidden="true">＋25</div>
+        </div>
       </section>
     </main>
 

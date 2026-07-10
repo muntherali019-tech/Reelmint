@@ -41,6 +41,7 @@ async function makePostgres() {
     getUserById: (id) => one(`SELECT data FROM users WHERE id = $1`, [id]),
     getUserByStripeCustomer: (c) =>
       c ? one(`SELECT data FROM users WHERE stripe_customer = $1`, [c]) : Promise.resolve(null),
+    listUsers: async () => (await pool.query(`SELECT data FROM users`)).rows.map((r) => r.data),
     saveUser: async (user) => {
       await pool.query(
         `INSERT INTO users (id, email, stripe_customer, data)
@@ -88,6 +89,7 @@ function makeFile() {
     getUserById: async (id) => Object.values(db.users).find((u) => u.id === id) || null,
     getUserByStripeCustomer: async (c) =>
       c ? Object.values(db.users).find((u) => u.stripeCustomer === c) || null : null,
+    listUsers: async () => Object.values(db.users),
     saveUser: async (user) => {
       db.users[user.email.toLowerCase()] = user;
       persist();
@@ -105,4 +107,5 @@ export async function initStore() {
 export const getUser = (email) => impl.getUser(email);
 export const getUserById = (id) => impl.getUserById(id);
 export const getUserByStripeCustomer = (c) => impl.getUserByStripeCustomer(c);
+export const listUsers = () => impl.listUsers();
 export const saveUser = (user) => impl.saveUser(user);

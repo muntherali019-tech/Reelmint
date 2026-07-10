@@ -20,8 +20,26 @@ step**, so it deploys to Render in minutes.
 | 🖼 **Instant images** | Mint posters, quote cards and thumbnails as downloadable PNGs ("Smart Slides"). Plug in any image API to swap in photoreal generation. |
 | 📷 **Scan & repurpose** | Upload a screenshot, photo or doc — Claude vision reads it and turns it into content. |
 | ✂️ **Long-form → clips** | Paste a transcript, get the most clip-worthy viral moments. |
-| 👤 **Accounts + credits** | Email/password sign-in, with server-enforced monthly credits per plan (Free 5 · Creator 100 · Studio unlimited). |
+| 👤 **Accounts + credits** | Email/password sign-in, with server-enforced monthly credits per plan (Free 5 · Creator 100 · Studio & Agency unlimited). |
 | 💸 **Live Stripe billing** | Real Stripe Checkout + webhook that upgrades the user's plan automatically. Free-tier watermark included. |
+| ⚡ **Credit packs** | Pay-as-you-go one-time top-ups (50 / 200 / 500 credits) for users who don't want a subscription — a second revenue line beyond plans. |
+| 🛍 **Template Marketplace** | Sell premium, ready-to-mint storyboard & brand packs. One-time unlock per account, with a built-in creator revenue split. |
+| 🤝 **Referral rewards** | Every account gets a shareable link — both sides earn 25 free credits on signup, driving viral, low-cost growth. |
+
+### Four revenue lines, one storefront
+
+Everything for sale lives in [`server/products.js`](server/products.js):
+
+| Line | What | How it's charged |
+|---|---|---|
+| **Subscriptions** | Free · Creator · Studio · **Agency** | Recurring Stripe subscription |
+| **Credit packs** | 50 / 200 / 500 credit top-ups | One-time Stripe payment (`mode: payment`) |
+| **Add-ons** | Extra seat · Brand kit · Priority rendering | One-time payment, attached to the account |
+| **Marketplace** | Premium template packs | One-time unlock, `creatorShare` models a 70/30 split |
+
+Credit packs, add-ons and templates all check out through `POST /api/store/buy`.
+When Stripe keys are present it returns a real Checkout URL; without them it
+fulfils instantly so the whole storefront stays clickable in demo mode.
 
 ## How the AI works
 

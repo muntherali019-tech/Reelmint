@@ -2,16 +2,18 @@
 // Gracefully no-ops when Stripe env vars are absent.
 import crypto from "node:crypto";
 import { getUserById, getUserByStripeCustomer } from "./store.js";
-import { setPlan } from "./auth.js";
+import { setPlan, addCredits, unlockTemplate, grantAddOn } from "./auth.js";
+import { findProduct } from "./products.js";
 
 const SECRET = process.env.STRIPE_SECRET_KEY || "";
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const PRICES = {
   creator: process.env.STRIPE_PRICE_CREATOR || "",
   studio: process.env.STRIPE_PRICE_STUDIO || "",
+  agency: process.env.STRIPE_PRICE_AGENCY || "",
 };
 
-export const stripeEnabled = Boolean(SECRET && (PRICES.creator || PRICES.studio));
+export const stripeEnabled = Boolean(SECRET && (PRICES.creator || PRICES.studio || PRICES.agency));
 
 async function stripe(endpoint, params) {
   const res = await fetch(`https://api.stripe.com/v1/${endpoint}`, {
@@ -44,6 +46,44 @@ export async function createCheckout({ user, plan, origin }) {
     cancel_url: `${origin}/?canceled=1`,
   });
   return session.url;
+}
+
+// Create a ONE-TIME payment Checkout session for a credit pack, add-on or
+// marketplace template. Builds the line item inline (price_data) so no Stripe
+// dashboard Price is required — the catalog in products.js is the source of truth.
+export async function createProductCheckout({ user, productId, origin }) {
+  if (!stripeEnabled) throw new Error("Stripe is not configured");
+  const product = findProduct(productId);
+  if (!product) throw new Error("Unknown product");
+  const session = await stripe("checkout/sessions", {
+    mode: "payment",
+    "line_items[0][quantity]": "1",
+    "line_items[0][price_data][currency]": "usd",
+    "line_items[0][price_data][unit_amount]": String(product.amount),
+    "line_items[0][price_data][product_data][name]": `Reelmint — ${product.name}`,
+    client_reference_id: user.id,
+    customer_email: user.email,
+    "metadata[userId]": user.id,
+    "metadata[productId]": product.id,
+    success_url: `${origin}/?purchased=${encodeURIComponent(product.id)}`,
+    cancel_url: `${origin}/?canceled=1`,
+  });
+  return session.url;
+}
+
+// Apply a completed one-time purchase to a user's account. Also called directly
+// in demo mode (no Stripe) so the storefront is fully clickable end-to-end.
+export async function fulfillProduct(user, productId) {
+  const product = findProduct(productId);
+  if (!user || !product) return { ok: false, error: "unknown product" };
+  if (product.credits) {
+    await addCredits(user, product.credits); // credit pack
+  } else if (product.creatorShare != null) {
+    await unlockTemplate(user, product.id); // marketplace template
+  } else {
+    await grantAddOn(user, product.id); // add-on
+  }
+  return { ok: true, product: { id: product.id, name: product.name } };
 }
 
 // Verify Stripe's webhook signature against the raw request body.
@@ -81,10 +121,14 @@ export async function handleWebhook(rawBody, sigHeader) {
     const obj = event.data.object;
     const userId = obj.client_reference_id || obj.metadata?.userId;
     const plan = obj.metadata?.plan;
+    const productId = obj.metadata?.productId;
     const user = userId ? await getUserById(userId) : null;
     if (user && plan) {
       user.stripeCustomer = obj.customer || user.stripeCustomer;
       await setPlan(user, plan); // setPlan persists the full user record
+    } else if (user && productId) {
+      // One-time purchase (credit pack, add-on or marketplace template).
+      await fulfillProduct(user, productId);
     }
   }
   if (event.type === "customer.subscription.deleted") {

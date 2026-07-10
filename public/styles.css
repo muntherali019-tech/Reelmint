@@ -152,6 +152,34 @@ input[type="range"] { padding: 0; }
 .plan li::before { content: "✓ "; color: var(--good); font-weight: 700; }
 .plan .credits { color: var(--accent); font-weight: 700; font-size: 14px; }
 
+/* store: credit packs · add-ons · marketplace */
+.store { max-width: 1180px; margin: 0 auto; padding: 30px 24px 20px; }
+.store h2 { text-align: center; font-size: 30px; margin-bottom: 10px; }
+.section-sub { text-align: center; color: var(--muted); max-width: 620px; margin: 0 auto 22px; }
+.store-h { font-size: 18px; margin: 26px 0 2px; }
+.store-note { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+.store-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.store-grid.market { grid-template-columns: repeat(4, 1fr); }
+.store-item { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 8px; position: relative; }
+.store-item.popular { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.store-item h4 { margin: 0; font-size: 16px; }
+.store-item p { font-size: 13px; margin: 0; flex: 1; }
+.store-item .badge { position: absolute; top: -11px; right: 16px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 999px; }
+.store-credits { font-size: 28px; font-weight: 800; color: var(--accent); }
+.tpl-cat { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent2); font-weight: 700; }
+.tpl-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tpl-tags span { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; }
+.btn[disabled] { opacity: .6; cursor: default; }
+
+/* referral */
+.referral { max-width: 1180px; margin: 0 auto; padding: 20px 24px 60px; }
+.referral-card { display: flex; align-items: center; justify-content: space-between; gap: 24px; background: linear-gradient(135deg, rgba(91,140,255,.12), rgba(166,107,255,.12)); border: 1px solid var(--accent); border-radius: var(--radius); padding: 30px; }
+.referral-copy { max-width: 640px; }
+.referral-copy h2 { font-size: 26px; margin: 0 0 8px; }
+.referral-row { display: flex; gap: 10px; margin-top: 14px; }
+.referral-row input { flex: 1; background: var(--bg2); border: 1px solid var(--line); border-radius: 12px; color: var(--text); padding: 10px 14px; font-size: 14px; }
+.referral-badge { font-size: 54px; font-weight: 800; color: var(--good); white-space: nowrap; }
+
 /* footer + toast */
 .foot { display: flex; justify-content: space-between; max-width: 1180px; margin: 0 auto; padding: 24px; border-top: 1px solid var(--line); font-weight: 700; }
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--card2); border: 1px solid var(--accent); color: var(--text); padding: 12px 18px; border-radius: 12px; opacity: 0; transition: all .3s; z-index: 100; max-width: 90vw; }
@@ -172,5 +200,12 @@ input[type="range"] { padding: 0; }
   .hero-art { order: -1; }
   .panel-grid { grid-template-columns: 1fr; }
   .feature-grid, .plans { grid-template-columns: 1fr; }
+  .store-grid, .store-grid.market { grid-template-columns: 1fr; }
+  .referral-card { flex-direction: column; text-align: center; }
+  .referral-badge { display: none; }
   .nav-links a:not(.btn):not(#statusPill) { display: none; }
+}
+
+@media (max-width: 1180px) and (min-width: 901px) {
+  .store-grid.market { grid-template-columns: repeat(2, 1fr); }
 }

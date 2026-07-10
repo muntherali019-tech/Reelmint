@@ -15,10 +15,12 @@ const api = (path, body) =>
     body: JSON.stringify(body),
   }).then((r) => r.json());
 
-let CONFIG = { enabled: false, model: "demo", watermark: true, plans: [] };
+let CONFIG = { enabled: false, model: "demo", watermark: true, plans: [], catalog: {} };
 let USER = null; // logged-in user (or null)
 let storyboard = null; // current storyboard
 let chatLog = [];
+// Referral code carried in on ?ref=… — applied when the visitor signs up.
+const REF_CODE = new URLSearchParams(location.search).get("ref") || "";
 
 const PALETTES = [
   { bg: "#0E1116", accent: "#5B8CFF", text: "#F4F6FB" },
@@ -46,6 +48,9 @@ async function init() {
   renderAccount();
   renderFeatures();
   renderPlans();
+  renderStore();
+  wireReferral();
+  refreshReferral();
   animateHero();
   wireTabs();
   wireCreate();
@@ -530,6 +535,101 @@ window.reelmintCheckout = async (id) => {
   }
 };
 
+// ---------- store: credit packs · add-ons · marketplace ----------
+function renderStore() {
+  const cat = CONFIG.catalog || {};
+  const owns = (id) => (USER?.templates || []).includes(id) || (USER?.addOns || []).includes(id);
+
+  $("#creditPacks").innerHTML = (cat.creditPacks || [])
+    .map(
+      (p) => `<div class="store-item ${p.popular ? "popular" : ""}">
+        ${p.popular ? '<span class="badge">Best value</span>' : ""}
+        <div class="store-credits">${p.credits}</div>
+        <h4>${esc(p.name)}</h4>
+        <p class="muted">${esc(p.blurb)}</p>
+        <button class="btn btn-primary btn-block" onclick="reelmintBuy('${p.id}')">${esc(p.price)}</button>
+      </div>`
+    )
+    .join("");
+
+  $("#addOns").innerHTML = (cat.addOns || [])
+    .map(
+      (p) => `<div class="store-item">
+        <h4>${esc(p.name)}</h4>
+        <p class="muted">${esc(p.blurb)}</p>
+        <button class="btn ${owns(p.id) ? "btn-ghost" : "btn-primary"} btn-block" ${owns(p.id) ? "disabled" : ""} onclick="reelmintBuy('${p.id}')">
+          ${owns(p.id) ? "✓ Active" : esc(p.price) + (p.period ? " " + esc(p.period) : "")}
+        </button>
+      </div>`
+    )
+    .join("");
+
+  $("#templates").innerHTML = (cat.templates || [])
+    .map(
+      (p) => `<div class="store-item ${p.popular ? "popular" : ""}">
+        ${p.popular ? '<span class="badge">Popular</span>' : ""}
+        <div class="tpl-cat">${esc(p.category)}</div>
+        <h4>${esc(p.name)}</h4>
+        <p class="muted">${esc(p.blurb)}</p>
+        <div class="tpl-tags">${(p.tags || []).map((t) => `<span>${esc(t)}</span>`).join("")}</div>
+        <button class="btn ${owns(p.id) ? "btn-ghost" : "btn-primary"} btn-block" ${owns(p.id) ? "disabled" : ""} onclick="reelmintBuy('${p.id}')">
+          ${owns(p.id) ? "✓ Owned" : "Unlock " + esc(p.price)}
+        </button>
+      </div>`
+    )
+    .join("");
+}
+
+window.reelmintBuy = async (id) => {
+  if (!USER) return openAuth("signup");
+  try {
+    const res = await api("/api/store/buy", { productId: id });
+    if (res.url) return (window.location.href = res.url); // Stripe Checkout
+    if (res.error) return toast(res.error);
+    if (res.ok) {
+      USER = res.user || USER;
+      renderAccount();
+      renderStore();
+      toast(`Unlocked ${res.product?.name || "your purchase"} 🎉`);
+    }
+  } catch {
+    toast("Purchase failed — try again.");
+  }
+};
+
+// ---------- referral program ----------
+function wireReferral() {
+  const copy = $("#referralCopy");
+  if (!copy) return;
+  copy.addEventListener("click", async () => {
+    const link = $("#referralLink").value;
+    if (!link) return openAuth("signup");
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("Referral link copied 📋");
+    } catch {
+      $("#referralLink").select();
+      toast("Press ⌘/Ctrl+C to copy your link");
+    }
+  });
+}
+
+async function refreshReferral() {
+  if (!TOKEN) {
+    $("#referralStats").textContent = "Sign in to unlock your referral link.";
+    return;
+  }
+  try {
+    const r = await fetch("/api/referral", {
+      headers: { authorization: `Bearer ${TOKEN}` },
+    }).then((x) => x.json());
+    if (r.link) {
+      $("#referralLink").value = r.link;
+      $("#referralStats").textContent = `${r.referrals} referred · ${r.earned} credits earned`;
+    }
+  } catch {}
+}
+
 // ---------- accounts ----------
 function renderAccount() {
   const btn = $("#accountBtn");
@@ -576,7 +676,11 @@ async function doAuth() {
   if (!email || !password) return ($("#authError").textContent = "Enter email and password.");
   busy($("#authSubmit"), true, "…");
   try {
-    const res = await api(`/api/auth/${authMode}`, { email, password });
+    const res = await api(`/api/auth/${authMode}`, {
+      email,
+      password,
+      ...(authMode === "signup" && REF_CODE ? { ref: REF_CODE } : {}),
+    });
     if (res.error) {
       $("#authError").textContent = res.error;
       return;
@@ -585,8 +689,11 @@ async function doAuth() {
     localStorage.setItem("reelmint_token", TOKEN);
     USER = res.user;
     renderAccount();
+    renderStore();
+    refreshReferral();
     closeAuth();
-    toast(`Welcome${authMode === "signup" ? "" : " back"}, ${USER.email.split("@")[0]} 👋`);
+    const welcomeBonus = authMode === "signup" && REF_CODE ? " — +25 bonus credits applied 🎁" : "";
+    toast(`Welcome${authMode === "signup" ? "" : " back"}, ${USER.email.split("@")[0]} 👋${welcomeBonus}`);
   } catch {
     $("#authError").textContent = "Something went wrong.";
   } finally {
@@ -617,6 +724,10 @@ function handleReturnFromCheckout() {
     refreshMe();
     toast(`Upgraded to ${q.get("upgraded").toUpperCase()} 🎉`);
     history.replaceState({}, "", location.pathname + "#pricing");
+  } else if (q.get("purchased")) {
+    refreshMe().then(renderStore);
+    toast("Purchase complete 🎉 — enjoy!");
+    history.replaceState({}, "", location.pathname + "#store");
   } else if (q.get("canceled")) {
     toast("Checkout canceled.");
     history.replaceState({}, "", location.pathname);

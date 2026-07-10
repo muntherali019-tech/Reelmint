@@ -17,7 +17,14 @@ import {
   spendCredit,
   refundCredit,
 } from "./auth.js";
-import { stripeEnabled, createCheckout, handleWebhook } from "./billing.js";
+import {
+  stripeEnabled,
+  createCheckout,
+  createProductCheckout,
+  fulfillProduct,
+  handleWebhook,
+} from "./billing.js";
+import { catalog, findProduct, PLANS } from "./products.js";
 import { generateImage, imageProvider } from "./images.js";
 import { initStore, backend } from "./store.js";
 
@@ -64,16 +71,20 @@ app.get("/api/config", (req, res) => {
     ...aiStatus(),
     watermark: !NO_WATERMARK,
     plans: PLANS,
+    catalog: catalog(),
     stripe: stripeEnabled,
     imageProvider,
     user: publicUser(req.user),
   });
 });
 
+// Full storefront catalog (plans, credit packs, add-ons, marketplace templates).
+app.get("/api/products", (_req, res) => res.json(catalog()));
+
 // ---------- accounts ----------
 app.post("/api/auth/signup", async (req, res) => {
   try {
-    res.json(await signup(req.body?.email, req.body?.password));
+    res.json(await signup(req.body?.email, req.body?.password, req.body?.ref));
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
@@ -99,6 +110,38 @@ app.post("/api/billing/checkout", async (req, res) => {
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
+});
+
+// ---------- store: one-time purchases (credit packs · add-ons · templates) ----------
+// Revenue features #1 (credit packs) and #2 (Template Marketplace) check out here.
+// With Stripe configured we hand back a Checkout URL; without it (demo/self-host)
+// we fulfil instantly so the storefront is fully clickable end-to-end.
+app.post("/api/store/buy", wrap(async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Sign in first" });
+  const product = findProduct(req.body?.productId);
+  if (!product) return res.status(400).json({ error: "Unknown product" });
+
+  if (stripeEnabled) {
+    const origin = `${req.protocol}://${req.get("host")}`;
+    const url = await createProductCheckout({ user: req.user, productId: product.id, origin });
+    return res.json({ url });
+  }
+  const result = await fulfillProduct(req.user, product.id);
+  res.json({ ...result, demo: true, user: publicUser(req.user) });
+}));
+
+// ---------- referral program (Revenue growth feature) ----------
+// Returns the signed-in user's shareable link + running referral stats.
+app.get("/api/referral", (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Sign in first" });
+  const origin = `${req.protocol}://${req.get("host")}`;
+  const u = publicUser(req.user);
+  res.json({
+    code: u.referralCode,
+    link: `${origin}/?ref=${u.referralCode}`,
+    referrals: u.referrals,
+    earned: (u.referrals || 0) * 25,
+  });
 });
 
 // ---------- storyboard / video script (costs 1 credit) ----------
@@ -144,8 +187,8 @@ ${schema}`,
       demo: demoStoryboard(topic, sceneCount),
     });
   } catch (e) {
-    // Generation failed after the credit was spent — refund it.
-    await refundCredit(req.user);
+    // Generation failed after the credit was spent — refund it to its bucket.
+    await refundCredit(req.user, credit.source);
     return res
       .status(502)
       .json({ error: "generation_failed", user: publicUser(req.user) });
@@ -271,37 +314,6 @@ app.use((err, _req, res, _next) => {
   if (res.headersSent) return;
   res.status(500).json({ error: "server_error" });
 });
-
-const PLANS = [
-  {
-    id: "free",
-    name: "Free",
-    price: "$0",
-    period: "forever",
-    credits: "5 videos / mo",
-    features: ["720p exports", "Reelmint watermark", "AI editor (basic)", "Smart Slide images"],
-    cta: "Start free",
-  },
-  {
-    id: "creator",
-    name: "Creator",
-    price: "$19",
-    period: "/mo",
-    credits: "100 videos / mo",
-    features: ["1080p exports", "No watermark", "Voice AI editor", "Brand kit", "Scan & repurpose"],
-    cta: "Go Creator",
-    popular: true,
-  },
-  {
-    id: "studio",
-    name: "Studio",
-    price: "$49",
-    period: "/mo",
-    credits: "Unlimited videos",
-    features: ["4K-ready exports", "Team seats", "API access", "Priority rendering", "Custom voices"],
-    cta: "Go Studio",
-  },
-];
 
 function decorateStoryboard(sb) {
   if (!sb || !Array.isArray(sb.scenes)) return demoStoryboard("your idea", 4);
