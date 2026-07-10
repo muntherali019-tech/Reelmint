@@ -44,6 +44,17 @@ cp .env.example .env        # then paste your ANTHROPIC_API_KEY (optional)
 npm start                   # http://localhost:3000
 ```
 
+## Testing
+
+```bash
+npm test                    # node:test — runs the whole suite, no key needed
+```
+
+The suite runs entirely in demo mode: an HTTP integration test boots the real
+server against an isolated JSON store and exercises every route (auth, credits,
+storyboard/captions/repurpose/image, billing gating), plus unit tests for the
+token signer and credit accounting. It also runs in CI on every push and PR.
+
 ## Deploy to Render
 
 **Option A — Blueprint (recommended).** This repo ships `reelmint/render.yaml`.
