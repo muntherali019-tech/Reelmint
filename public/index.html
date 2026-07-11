@@ -59,7 +59,10 @@
           <div class="tabs" id="tabs">
             <button class="tab active" data-tab="create">🎬 Create</button>
             <button class="tab" data-tab="editor">🪄 AI Editor</button>
+            <button class="tab" data-tab="campaign">🗓 Campaign <span class="pro-dot" title="Creator+">PRO</span></button>
+            <button class="tab" data-tab="trends">🔥 Trends</button>
             <button class="tab" data-tab="image">🖼 Image</button>
+            <button class="tab" data-tab="brand">🎨 Brand <span class="pro-dot" title="Creator+">PRO</span></button>
             <button class="tab" data-tab="scan">📷 Scan</button>
             <button class="tab" data-tab="repurpose">✂️ Repurpose</button>
           </div>
@@ -131,6 +134,102 @@
           </div>
         </div>
 
+        <!-- CAMPAIGN STUDIO -->
+        <div class="panel" data-panel="campaign">
+          <div class="card">
+            <div class="panel-title">
+              <div>
+                <h3>Campaign Studio <span class="pill-pro">Creator+</span></h3>
+                <p class="muted">One theme → a full multi-day content calendar that builds an audience, then converts it.</p>
+              </div>
+            </div>
+            <div class="row3">
+              <label class="field span2">
+                <span>Campaign theme</span>
+                <input id="campTheme" placeholder="e.g. helping beginners start strength training" />
+              </label>
+              <label class="field">
+                <span>Days: <b id="campCountLabel">7</b></span>
+                <input id="campCount" type="range" min="3" max="14" step="1" value="7" />
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">
+                <span>Platform</span>
+                <select id="campPlatform">
+                  <option value="tiktok">TikTok</option>
+                  <option value="reels">Instagram Reels</option>
+                  <option value="shorts">YouTube Shorts</option>
+                  <option value="linkedin">LinkedIn</option>
+                </select>
+              </label>
+              <div class="field end">
+                <button class="btn btn-primary btn-block" id="campBtn">🗓 Build campaign</button>
+              </div>
+            </div>
+            <p class="hint" id="campHint"></p>
+            <div id="campaignOut" class="campaign-out"></div>
+          </div>
+        </div>
+
+        <!-- TREND RADAR -->
+        <div class="panel" data-panel="trends">
+          <div class="card">
+            <div class="panel-title">
+              <div>
+                <h3>Trend & Hashtag Radar</h3>
+                <p class="muted">Get a growth kit for any idea: tiered hashtags, best post times, high-performing hook angles and a virality score.</p>
+              </div>
+            </div>
+            <div class="row">
+              <label class="field span2">
+                <span>Your topic or hook</span>
+                <input id="trendTopic" placeholder="e.g. 3 morning habits that doubled my focus" />
+              </label>
+              <label class="field">
+                <span>Platform</span>
+                <select id="trendPlatform">
+                  <option value="tiktok">TikTok</option>
+                  <option value="reels">Instagram Reels</option>
+                  <option value="shorts">YouTube Shorts</option>
+                </select>
+              </label>
+            </div>
+            <button class="btn btn-primary" id="trendBtn">🔥 Analyze trends</button>
+            <div id="trendsOut" class="trends-out"></div>
+          </div>
+        </div>
+
+        <!-- BRAND KIT -->
+        <div class="panel" data-panel="brand">
+          <div class="card">
+            <div class="panel-title">
+              <div>
+                <h3>Brand Kit <span class="pill-pro">Creator+</span></h3>
+                <p class="muted">Save your colors, handle and brand voice once — every video, poster and caption uses them automatically.</p>
+              </div>
+            </div>
+            <div class="panel-grid">
+              <div class="controls">
+                <label class="field"><span>Brand name</span><input id="bkName" placeholder="Reelmint Creators" /></label>
+                <label class="field"><span>@handle</span><input id="bkHandle" placeholder="@yourbrand" /></label>
+                <div class="row3">
+                  <label class="field"><span>Background</span><input id="bkBg" type="color" value="#0E1116" /></label>
+                  <label class="field"><span>Accent</span><input id="bkAccent" type="color" value="#5B8CFF" /></label>
+                  <label class="field"><span>Text</span><input id="bkText" type="color" value="#F4F6FB" /></label>
+                </div>
+                <label class="field"><span>Brand voice (how the AI should sound)</span><textarea id="bkVoice" rows="3" placeholder="e.g. warm, plain-spoken, a little cheeky; never salesy"></textarea></label>
+                <button class="btn btn-primary btn-block" id="bkSave">💾 Save brand kit</button>
+                <p class="hint" id="bkHint"></p>
+              </div>
+              <div class="preview center">
+                <canvas id="bkStage" width="600" height="600"></canvas>
+                <span class="muted" style="font-size:12px">Live brand preview</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- IMAGE -->
         <div class="panel" data-panel="image">
           <div class="panel-grid">
@@ -191,6 +290,25 @@
       <section id="pricing" class="pricing">
         <h2>Simple pricing that scales with you</h2>
         <div class="plans" id="plans"></div>
+
+        <!-- CREDIT PACKS -->
+        <div class="packs-wrap" id="packsWrap" hidden>
+          <h3 class="packs-title">Need a top-up? Grab a credit pack</h3>
+          <p class="muted center-text">One-time purchase, never expires. Perfect for a busy launch week.</p>
+          <div class="packs" id="packs"></div>
+        </div>
+
+        <!-- REFERRAL -->
+        <div class="referral" id="referralCard" hidden>
+          <div>
+            <h3>Give 10 credits, get 10 credits</h3>
+            <p class="muted">Share your link. When a friend signs up you both get 10 bonus credits — instantly.</p>
+          </div>
+          <div class="referral-share">
+            <input id="referralLink" readonly />
+            <button class="btn btn-primary" id="referralCopy">Copy link</button>
+          </div>
+        </div>
       </section>
     </main>
 

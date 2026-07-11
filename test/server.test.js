@@ -67,6 +67,15 @@ test("config exposes plans and disabled billing without a signed-in user", async
   assert.equal(r.body.user, null);
 });
 
+test("config exposes credit packs and (disabled) pack purchasing", async () => {
+  const r = await api("GET", "/api/config");
+  assert.ok(Array.isArray(r.body.creditPacks) && r.body.creditPacks.length === 3);
+  assert.equal(r.body.creditPacksEnabled, false);
+  for (const p of r.body.creditPacks) {
+    assert.ok(p.id && p.credits > 0 && p.price);
+  }
+});
+
 test("signup validates email and password, and blocks duplicates", async () => {
   const badEmail = await api("POST", "/api/auth/signup", { body: { email: "nope", password: "longenough" } });
   assert.equal(badEmail.status, 400);
@@ -167,4 +176,72 @@ test("captions, repurpose and image routes return demo output", async () => {
 test("scan requires an image payload", async () => {
   const r = await api("POST", "/api/scan", { body: {} });
   assert.equal(r.status, 400);
+});
+
+test("trend radar returns a growth kit with a hook score", async () => {
+  const missing = await api("POST", "/api/trends", { body: { topic: "  " } });
+  assert.equal(missing.status, 400);
+
+  const r = await api("POST", "/api/trends", { body: { topic: "morning routines", platform: "tiktok" } });
+  assert.equal(r.status, 200);
+  assert.ok(r.body.hashtags && Array.isArray(r.body.hashtags.broad) && Array.isArray(r.body.hashtags.niche));
+  assert.ok(Array.isArray(r.body.bestTimes) && r.body.bestTimes.length >= 1);
+  assert.ok(Array.isArray(r.body.hookAngles) && r.body.hookAngles.length >= 1);
+  assert.ok(r.body.hookScore && typeof r.body.hookScore.score === "number");
+  assert.ok(r.body.hookScore.score >= 0 && r.body.hookScore.score <= 100);
+});
+
+test("campaign studio is gated on auth and a premium plan", async () => {
+  const anon = await api("POST", "/api/campaign", { body: { theme: "strength training", count: 5 } });
+  assert.equal(anon.status, 401);
+
+  const { body: { token } } = await api("POST", "/api/auth/login", { body: { email: "creator@example.com", password: "secret123" } });
+  const gated = await api("POST", "/api/campaign", { token, body: { theme: "strength training", count: 5 } });
+  assert.equal(gated.status, 403);
+  assert.equal(gated.body.error, "premium_required");
+
+  const missing = await api("POST", "/api/campaign", { token, body: { theme: "  " } });
+  assert.equal(missing.status, 400);
+});
+
+test("brand kit is gated on auth and a premium plan", async () => {
+  const anon = await api("POST", "/api/brandkit", { body: { name: "X" } });
+  assert.equal(anon.status, 401);
+
+  const { body: { token } } = await api("POST", "/api/auth/login", { body: { email: "creator@example.com", password: "secret123" } });
+  const gated = await api("POST", "/api/brandkit", { token, body: { name: "Free Brand", accent: "#ff0000" } });
+  assert.equal(gated.status, 403);
+});
+
+test("referrals grant bonus credits to both parties", async () => {
+  const referrer = await api("POST", "/api/auth/signup", { body: { email: "referrer@example.com", password: "secret123" } });
+  const code = referrer.body.user.referralCode;
+  assert.ok(code, "signup should return a referral code");
+  assert.equal(referrer.body.user.creditsLeft, 5);
+
+  const invited = await api("POST", "/api/auth/signup", { body: { email: "invited@example.com", password: "secret123", ref: code } });
+  assert.equal(invited.status, 200);
+  // Invited user starts with the free 5 + 10 referral bonus = 15 spendable.
+  assert.equal(invited.body.user.creditsLeft, 15);
+  assert.equal(invited.body.user.bonusCredits, 10);
+
+  // Referrer's bonus is reflected on their next fetch.
+  const me = await api("GET", "/api/me", { token: referrer.body.token });
+  assert.equal(me.body.user.creditsLeft, 15);
+  assert.equal(me.body.user.referrals, 1);
+});
+
+test("purchased credits let a user keep minting past the monthly limit", async () => {
+  // A fresh free user with referral bonus can exceed the 5/mo allowance.
+  const signup = await api("POST", "/api/auth/signup", { body: { email: "poweruser@example.com", password: "secret123", ref: (await api("POST", "/api/auth/signup", { body: { email: "ref2@example.com", password: "secret123" } })).body.user.referralCode } });
+  const token = signup.body.token;
+  assert.equal(signup.body.user.creditsLeft, 15); // 5 monthly + 10 bonus
+
+  // Spend all 15 successfully (5 monthly, then 10 bonus).
+  for (let i = 0; i < 15; i++) {
+    const r = await api("POST", "/api/script", { token, body: { topic: `idea ${i}` } });
+    assert.equal(r.status, 200, `script ${i} should succeed`);
+  }
+  const overdrawn = await api("POST", "/api/script", { token, body: { topic: "one too many" } });
+  assert.equal(overdrawn.status, 402);
 });
