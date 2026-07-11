@@ -46,15 +46,44 @@ async function init() {
   renderAccount();
   renderFeatures();
   renderPlans();
+  renderPacks();
+  renderReferral();
   animateHero();
   wireTabs();
   wireCreate();
   wireEditor();
+  wireCampaign();
+  wireTrends();
   wireImage();
+  wireBrand();
   wireScan();
   wireRepurpose();
   wireAuth();
+  wireReferral();
+  captureReferral();
+  if (USER) loadBrandKit();
   handleReturnFromCheckout();
+  initReveal();
+}
+
+// Reveal-on-scroll for the marketing sections.
+function initReveal() {
+  const targets = document.querySelectorAll(".feature, .plan, .pack, .features h2, .pricing h2");
+  if (!("IntersectionObserver" in window)) {
+    targets.forEach((t) => t.classList.add("in"));
+    return;
+  }
+  const io = new IntersectionObserver(
+    (entries) => entries.forEach((e) => e.isIntersecting && (e.target.classList.add("in"), io.unobserve(e.target))),
+    { threshold: 0.12 }
+  );
+  targets.forEach((t) => { t.classList.add("reveal"); io.observe(t); });
+}
+
+// Persist a ?ref= code so it survives the sign-up flow.
+function captureReferral() {
+  const ref = new URLSearchParams(location.search).get("ref");
+  if (ref) localStorage.setItem("reelmint_ref", ref);
 }
 
 // ---------- tabs ----------
@@ -188,18 +217,55 @@ function drawScene(i, progress = 0.5, canvas = $("#stage")) {
   ctx.font = `800 ${size}px sans-serif`;
   wrapText(ctx, scene.caption || "", W * 0.12, H * 0.34, W * 0.76, size * 1.15);
 
-  // voiceover subtitle near bottom
-  ctx.fillStyle = hexA(pal.text, 0.8);
+  // voiceover subtitle near bottom (with a soft pill for legibility)
+  ctx.fillStyle = hexA(pal.text, 0.85);
   ctx.font = `500 ${Math.round(W * 0.04)}px sans-serif`;
   wrapText(ctx, scene.voiceover || "", W * 0.12, H * 0.78, W * 0.76, W * 0.05);
 
-  // watermark (free tier)
+  // cinematic finish: film grain + vignette so exports feel produced, not flat.
+  drawGrain(ctx, W, H, 0.04);
+  drawVignette(ctx, W, H);
+
+  // scene progress bar
+  ctx.fillStyle = hexA(pal.text, 0.15);
+  ctx.fillRect(W * 0.12, H * 0.9, W * 0.76, 5);
+  ctx.fillStyle = pal.accent;
+  ctx.fillRect(W * 0.12, H * 0.9, W * 0.76 * progress, 5);
+
+  // brand handle (from Brand Kit) or free-tier watermark
+  const handle = storyboard?.brand?.handle;
+  if (handle) {
+    ctx.fillStyle = hexA(pal.text, 0.7);
+    ctx.font = `700 ${Math.round(W * 0.035)}px sans-serif`;
+    ctx.textAlign = "left";
+    ctx.fillText(handle, W * 0.12, H * 0.955);
+  }
   if (CONFIG.watermark) {
     ctx.fillStyle = hexA(pal.text, 0.55);
     ctx.font = `700 ${Math.round(W * 0.035)}px sans-serif`;
     ctx.textAlign = "right";
-    ctx.fillText("◉ Reelmint", W * 0.9, H * 0.94);
+    ctx.fillText("◉ Reelmint", W * 0.88, H * 0.955);
   }
+}
+
+// Lightweight procedural grain — sparse dots, cheap enough for 30fps export.
+function drawGrain(ctx, W, H, alpha = 0.05) {
+  const n = Math.round((W * H) / 1400);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "#ffffff";
+  for (let i = 0; i < n; i++) {
+    ctx.fillRect((Math.random() * W) | 0, (Math.random() * H) | 0, 1, 1);
+  }
+  ctx.restore();
+}
+
+function drawVignette(ctx, W, H) {
+  const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.75);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, "rgba(0,0,0,0.42)");
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, W, H);
 }
 
 // ---------- preview (with voiceover) ----------
@@ -275,7 +341,8 @@ async function exportVideo() {
     const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
       ? "video/webm;codecs=vp9"
       : "video/webm";
-    const rec = new MediaRecorder(stream, { mimeType: mime });
+    // Higher bitrate = crisper text and gradients in the exported file.
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 8_000_000 });
     const chunks = [];
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
     const done = new Promise((res) => (rec.onstop = res));
@@ -369,6 +436,179 @@ function renderChat() {
     .map((m) => `<div class="msg ${m.role}">${esc(m.text)}</div>`)
     .join("");
   el.scrollTop = el.scrollHeight;
+}
+
+// ---------- campaign studio ----------
+function wireCampaign() {
+  const c = $("#campCount");
+  if (c) c.addEventListener("input", () => ($("#campCountLabel").textContent = c.value));
+  const btn = $("#campBtn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const theme = $("#campTheme").value.trim();
+    if (!theme) return toast("Give your campaign a theme first.");
+    if (!USER) return openAuth("signup");
+    if (!USER.premium) {
+      toast("Campaign Studio is a Creator+ feature — upgrade to unlock it.");
+      location.hash = "#pricing";
+      return;
+    }
+    busy(btn, true, "Building…");
+    try {
+      const res = await api("/api/campaign", {
+        theme,
+        count: Number($("#campCount").value),
+        platform: $("#campPlatform").value,
+      });
+      if (res.error === "premium_required") { location.hash = "#pricing"; return toast("Upgrade to Creator to build campaigns."); }
+      if (res.error === "out_of_credits") { syncUser(res.user); location.hash = "#pricing"; return toast("Out of credits — top up or upgrade."); }
+      if (res.error) return toast("Couldn't build the campaign — try again.");
+      syncUser(res.user);
+      renderCampaign(res);
+      toast(`Campaign minted 🗓 — ${res.posts.length} posts ready.`);
+    } catch { toast("Campaign failed — try again."); }
+    finally { busy(btn, false, "🗓 Build campaign"); }
+  });
+}
+
+function renderCampaign(c) {
+  const el = $("#campaignOut");
+  if (!c || !Array.isArray(c.posts)) return (el.innerHTML = "");
+  el.innerHTML = `
+    <div class="camp-head">
+      <div class="camp-name">${esc(c.name || "Your campaign")}</div>
+      <div class="muted">${esc(c.bigIdea || "")}</div>
+    </div>
+    <div class="camp-grid">
+      ${c.posts.map((p) => `
+        <div class="camp-card">
+          <div class="camp-day">DAY ${esc(p.day)}</div>
+          <div class="camp-title">${esc(p.title || p.angle || "")}</div>
+          <div class="camp-hook">“${esc(p.hook || "")}”</div>
+          <div class="camp-meta">
+            <span class="chip">${esc(p.format || "video")}</span>
+            <span class="chip">🕒 ${esc(p.bestTime || "peak")}</span>
+          </div>
+          <div class="tagline">${(p.hashtags || []).map((h) => `<span class="tag">${esc(h)}</span>`).join("")}</div>
+          <button class="btn btn-ghost btn-sm" onclick="reelmintLoadIdea(${jsAttr(p.title || p.angle)})">Send to Create →</button>
+        </div>`).join("")}
+    </div>`;
+}
+window.reelmintLoadIdea = (idea) => {
+  $("#topic").value = idea;
+  document.querySelector('.tab[data-tab="create"]').click();
+  $("#topic").scrollIntoView({ behavior: "smooth", block: "center" });
+  toast("Loaded into Create — hit Generate ✨");
+};
+
+// ---------- trend radar ----------
+function wireTrends() {
+  const btn = $("#trendBtn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const topic = $("#trendTopic").value.trim();
+    if (!topic) return toast("Type a topic to analyze.");
+    busy(btn, true, "Analyzing…");
+    try {
+      const res = await api("/api/trends", { topic, platform: $("#trendPlatform").value });
+      if (res.error === "out_of_credits") { syncUser(res.user); location.hash = "#pricing"; return toast("Out of credits — top up or upgrade."); }
+      if (res.error) return toast("Trend analysis failed — try again.");
+      if (res.user) syncUser(res.user);
+      renderTrends(res);
+    } catch { toast("Trend analysis failed."); }
+    finally { busy(btn, false, "🔥 Analyze trends"); }
+  });
+}
+
+function renderTrends(t) {
+  const el = $("#trendsOut");
+  const tier = (name, arr) => `
+    <div class="tier">
+      <h4>${name}</h4>
+      ${(arr || []).map((h) => `<div class="tier-row"><span class="tag">${esc(h.tag)}</span><span class="muted">${esc(h.reach)} · ${esc(h.note)}</span></div>`).join("")}
+    </div>`;
+  const score = t.hookScore || {};
+  el.innerHTML = `
+    <div class="score-card">
+      <div class="score-ring" style="--pct:${Number(score.score) || 0}">
+        <div class="score-num">${esc(score.score ?? "—")}<small>/100</small></div>
+      </div>
+      <div>
+        <div class="score-grade">Hook grade: <b>${esc(score.grade || "—")}</b></div>
+        <div class="muted">${esc(score.tip || "")}</div>
+      </div>
+    </div>
+    <div class="trend-cols">
+      <div class="trend-col">
+        <h4>Best times to post</h4>
+        ${(t.bestTimes || []).map((b) => `<div class="time-row"><b>${esc(b.window)}</b><span class="muted">${esc(b.why)}</span></div>`).join("")}
+      </div>
+      <div class="trend-col">
+        <h4>Hook angles that pop</h4>
+        <ul class="angle-list">${(t.hookAngles || []).map((a) => `<li>${esc(a)}</li>`).join("")}</ul>
+      </div>
+    </div>
+    <div class="tiers">
+      ${tier("Broad reach", t.hashtags?.broad)}
+      ${tier("Sweet spot", t.hashtags?.mid)}
+      ${tier("Niche & rankable", t.hashtags?.niche)}
+    </div>
+    ${t.ridingTrend ? `<div class="riding">📈 ${esc(t.ridingTrend)}</div>` : ""}`;
+}
+
+// ---------- brand kit ----------
+function wireBrand() {
+  const save = $("#bkSave");
+  if (!save) return;
+  const fields = ["bkBg", "bkAccent", "bkText", "bkName", "bkHandle", "bkVoice"];
+  fields.forEach((id) => $("#" + id)?.addEventListener("input", drawBrandPreview));
+  drawBrandPreview();
+  save.addEventListener("click", async () => {
+    if (!USER) return openAuth("signup");
+    if (!USER.premium) { toast("Brand Kit is a Creator+ feature."); location.hash = "#pricing"; return; }
+    busy(save, true, "Saving…");
+    try {
+      const res = await api("/api/brandkit", {
+        name: $("#bkName").value, handle: $("#bkHandle").value,
+        bg: $("#bkBg").value, accent: $("#bkAccent").value, text: $("#bkText").value,
+        voice: $("#bkVoice").value,
+      });
+      if (res.error) { $("#bkHint").textContent = res.error; return; }
+      if (res.user) syncUser(res.user);
+      $("#bkHint").textContent = "Saved — new videos, posters and captions now use your brand.";
+      toast("Brand kit saved 🎨");
+    } catch { toast("Save failed."); }
+    finally { busy(save, false, "💾 Save brand kit"); }
+  });
+}
+
+function loadBrandKit() {
+  const k = USER?.brandKit;
+  if (!k) return;
+  const set = (id, v) => { const el = $("#" + id); if (el && v) el.value = v; };
+  set("bkName", k.name); set("bkHandle", k.handle);
+  set("bkBg", k.bg); set("bkAccent", k.accent); set("bkText", k.text); set("bkVoice", k.voice);
+  drawBrandPreview();
+}
+
+function drawBrandPreview() {
+  const c = $("#bkStage"); if (!c) return;
+  const ctx = c.getContext("2d"), W = c.width, H = c.height;
+  const bg = $("#bkBg")?.value || "#0E1116", accent = $("#bkAccent")?.value || "#5B8CFF", text = $("#bkText")?.value || "#F4F6FB";
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, bg); g.addColorStop(1, shade(bg, 26));
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W * 0.7, H * 0.28, 10, W * 0.7, H * 0.28, W);
+  glow.addColorStop(0, hexA(accent, 0.45)); glow.addColorStop(1, hexA(accent, 0));
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = accent; ctx.fillRect(W * 0.1, H * 0.34, W * 0.16, 8);
+  ctx.fillStyle = text; ctx.textAlign = "left";
+  ctx.font = "800 52px sans-serif";
+  wrapText(ctx, ($("#bkName")?.value || "Your Brand").slice(0, 24), W * 0.1, H * 0.46, W * 0.8, 58);
+  ctx.fillStyle = hexA(text, 0.75); ctx.font = "500 26px sans-serif";
+  ctx.fillText($("#bkHandle")?.value || "@yourbrand", W * 0.1, H * 0.6);
+  ctx.fillStyle = accent; ctx.font = "700 24px sans-serif"; ctx.textAlign = "right";
+  ctx.fillText("◉ " + (($("#bkName")?.value || "Reelmint").split(" ")[0]), W * 0.9, H * 0.92);
 }
 
 // ---------- image ----------
@@ -487,12 +727,14 @@ function wireRepurpose() {
 // ---------- features + pricing ----------
 function renderFeatures() {
   const feats = [
-    ["🎬", "Prompt → video", "One idea becomes a fully storyboarded, voiced video — short or long-form."],
+    ["🎬", "Prompt → video", "One idea becomes a fully storyboarded, voiced video with cinematic grain, motion and captions."],
+    ["🗓", "Campaign Studio", "Turn one theme into a full multi-day content calendar that builds an audience, then converts it."],
+    ["🔥", "Trend & Hashtag Radar", "Tiered hashtags, best post times, high-performing hooks and a virality score for any idea."],
     ["🪄", "Voice & text editor", "Just say or type what to change. The AI rewrites your storyboard live."],
-    ["🖼", "Instant images", "Mint posters, quote cards and thumbnails in your brand's look."],
-    ["📷", "Scan anything", "Turn a screenshot, photo or doc into ready-to-post content."],
-    ["✂️", "Repurpose long-form", "Drop a transcript, get the most clip-worthy viral moments."],
-    ["⬇", "Export in-browser", "Render and download real video & image files — no installs."],
+    ["🎨", "Brand Kit", "Save your colors, handle and brand voice once — every video, poster and caption stays on-brand."],
+    ["📷", "Scan anything", "Turn a screenshot, photo or doc into ready-to-post content with real vision AI."],
+    ["✂️", "Repurpose long-form", "Drop a transcript, get the most clip-worthy viral moments, ranked by hook strength."],
+    ["⬇", "Export in-browser", "Render and download real 8-Mbps video & PNG files — no installs, no render farm."],
   ];
   $("#featureGrid").innerHTML = feats
     .map(
@@ -529,6 +771,63 @@ window.reelmintCheckout = async (id) => {
     toast("Checkout failed.");
   }
 };
+
+// ---------- credit packs (one-time revenue) ----------
+function renderPacks() {
+  const packs = CONFIG.creditPacks || [];
+  const wrap = $("#packsWrap");
+  if (!packs.length) return (wrap.hidden = true);
+  wrap.hidden = false;
+  $("#packs").innerHTML = packs
+    .map(
+      (p) => `<div class="pack ${p.best ? "best" : ""}">
+        ${p.best ? '<span class="badge">Best value</span>' : ""}
+        <div class="pack-credits">${esc(p.credits)}</div>
+        <div class="muted">credits</div>
+        <div class="pack-price">${esc(p.price)}</div>
+        <button class="btn ${p.best ? "btn-primary" : "btn-ghost"} btn-block" onclick="reelmintBuyPack('${p.id}')">Buy pack</button>
+      </div>`
+    )
+    .join("");
+}
+window.reelmintBuyPack = async (id) => {
+  if (!USER) return openAuth("signup");
+  if (!CONFIG.creditPacksEnabled)
+    return toast("Credit packs aren't configured on this server yet.");
+  try {
+    const res = await api("/api/billing/credits", { pack: id });
+    if (res.url) window.location.href = res.url;
+    else toast(res.error || "Couldn't start checkout.");
+  } catch {
+    toast("Checkout failed.");
+  }
+};
+
+// ---------- referral ----------
+function renderReferral() {
+  const card = $("#referralCard");
+  if (!USER || !USER.referralCode) return (card.hidden = true);
+  card.hidden = false;
+  $("#referralLink").value = `${location.origin}/?ref=${USER.referralCode}`;
+}
+function wireReferral() {
+  $("#referralCopy")?.addEventListener("click", () => {
+    const el = $("#referralLink");
+    el.select();
+    navigator.clipboard?.writeText(el.value).then(
+      () => toast("Referral link copied 🔗"),
+      () => toast("Copy failed — select and copy manually.")
+    );
+  });
+}
+
+// Keep USER + all user-dependent UI in sync after any API call that returns it.
+function syncUser(user) {
+  if (!user) return;
+  USER = user;
+  renderAccount();
+  renderReferral();
+}
 
 // ---------- accounts ----------
 function renderAccount() {
@@ -576,17 +875,22 @@ async function doAuth() {
   if (!email || !password) return ($("#authError").textContent = "Enter email and password.");
   busy($("#authSubmit"), true, "…");
   try {
-    const res = await api(`/api/auth/${authMode}`, { email, password });
+    const ref = authMode === "signup" ? localStorage.getItem("reelmint_ref") || undefined : undefined;
+    const res = await api(`/api/auth/${authMode}`, { email, password, ref });
     if (res.error) {
       $("#authError").textContent = res.error;
       return;
     }
     TOKEN = res.token;
     localStorage.setItem("reelmint_token", TOKEN);
+    if (ref) localStorage.removeItem("reelmint_ref");
     USER = res.user;
     renderAccount();
+    renderReferral();
+    loadBrandKit();
     closeAuth();
-    toast(`Welcome${authMode === "signup" ? "" : " back"}, ${USER.email.split("@")[0]} 👋`);
+    const bonus = USER.bonusCredits ? ` — +${USER.bonusCredits} bonus credits!` : "";
+    toast(`Welcome${authMode === "signup" ? "" : " back"}, ${USER.email.split("@")[0]} 👋${bonus}`);
   } catch {
     $("#authError").textContent = "Something went wrong.";
   } finally {
@@ -599,6 +903,7 @@ function logout() {
   USER = null;
   localStorage.removeItem("reelmint_token");
   renderAccount();
+  renderReferral();
   toast("Signed out.");
 }
 
@@ -606,8 +911,8 @@ async function refreshMe() {
   if (!TOKEN) return;
   try {
     const res = await fetch("/api/me", { headers: { authorization: `Bearer ${TOKEN}` } }).then((r) => r.json());
-    USER = res.user;
-    renderAccount();
+    syncUser(res.user);
+    loadBrandKit();
   } catch {}
 }
 
@@ -616,6 +921,10 @@ function handleReturnFromCheckout() {
   if (q.get("upgraded")) {
     refreshMe();
     toast(`Upgraded to ${q.get("upgraded").toUpperCase()} 🎉`);
+    history.replaceState({}, "", location.pathname + "#pricing");
+  } else if (q.get("credits")) {
+    refreshMe();
+    toast(`Added ${q.get("credits")} credits 🎉`);
     history.replaceState({}, "", location.pathname + "#pricing");
   } else if (q.get("canceled")) {
     toast("Checkout canceled.");
@@ -664,6 +973,15 @@ function hexRGB(hex) {
 }
 function esc(s) {
   return String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+// Safely embed a string as a single-quoted JS argument inside an HTML attribute.
+function jsAttr(s) {
+  return "'" + String(s ?? "")
+    .replace(/\\/g, "\\\\")
+    .replace(/'/g, "\\'")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "\\x3C")
+    .replace(/[\r\n]/g, " ") + "'";
 }
 function fileToBase64(file) {
   return new Promise((res, rej) => {

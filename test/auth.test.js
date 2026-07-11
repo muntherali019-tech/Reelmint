@@ -61,6 +61,25 @@ test("a stale credit period resets usage to zero", () => {
   assert.equal(stale.creditsLeft, 5);
 });
 
+test("purchased/bonus credits add on top of the monthly allowance", () => {
+  const u = publicUser({ id: "7", email: "b@x.co", plan: "free", creditsUsed: 5, bonusCredits: 12, period: period() });
+  // Monthly exhausted (5/5) but 12 purchased credits remain spendable.
+  assert.equal(u.creditsLeft, 12);
+  assert.equal(u.bonusCredits, 12);
+
+  const partial = publicUser({ id: "8", email: "b2@x.co", plan: "free", creditsUsed: 2, bonusCredits: 4, period: period() });
+  assert.equal(partial.creditsLeft, 3 + 4); // 3 monthly left + 4 bonus
+});
+
+test("publicUser exposes premium flag and referral fields", () => {
+  const free = publicUser({ id: "9", email: "f2@x.co", plan: "free", creditsUsed: 0, period: period(), referralCode: "abc123" });
+  assert.equal(free.premium, false);
+  assert.equal(free.referralCode, "abc123");
+
+  const creator = publicUser({ id: "10", email: "c2@x.co", plan: "creator", creditsUsed: 0, period: period() });
+  assert.equal(creator.premium, true);
+});
+
 function period() {
   const d = new Date();
   return `${d.getUTCFullYear()}-${d.getUTCMonth() + 1}`;
