@@ -178,6 +178,53 @@ test("scan requires an image payload", async () => {
   assert.equal(r.status, 400);
 });
 
+test("thumbnail lab returns scored concepts (credit-costed, open)", async () => {
+  const missing = await api("POST", "/api/thumbnails", { body: { topic: "  " } });
+  assert.equal(missing.status, 400);
+
+  const r = await api("POST", "/api/thumbnails", { body: { topic: "how I edit fast", platform: "youtube" } });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body.concepts) && r.body.concepts.length >= 3);
+  for (const c of r.body.concepts) {
+    assert.ok(typeof c.title === "string" && c.title.length > 0);
+    assert.ok(typeof c.clickScore === "number" && c.clickScore >= 0 && c.clickScore <= 100);
+  }
+});
+
+test("carousel maker returns the requested number of slides", async () => {
+  const missing = await api("POST", "/api/carousel", { body: { topic: "  " } });
+  assert.equal(missing.status, 400);
+
+  const r = await api("POST", "/api/carousel", { body: { topic: "budgeting rules that stick", platform: "instagram", slides: 5 } });
+  assert.equal(r.status, 200);
+  assert.ok(Array.isArray(r.body.slides) && r.body.slides.length === 5);
+  assert.ok(typeof r.body.caption === "string" && r.body.caption.length > 0);
+  assert.ok(Array.isArray(r.body.hashtags) && r.body.hashtags.length >= 1);
+});
+
+test("ad studio is gated on auth and a premium plan", async () => {
+  const anon = await api("POST", "/api/ads", { body: { product: "a caption app" } });
+  assert.equal(anon.status, 401);
+
+  const { body: { token } } = await api("POST", "/api/auth/login", { body: { email: "creator@example.com", password: "secret123" } });
+  const gated = await api("POST", "/api/ads", { token, body: { product: "a caption app", platform: "meta" } });
+  assert.equal(gated.status, 403);
+  assert.equal(gated.body.error, "premium_required");
+
+  const missing = await api("POST", "/api/ads", { token, body: { product: "  " } });
+  assert.equal(missing.status, 400);
+});
+
+test("SEO writer is gated on auth and a premium plan", async () => {
+  const anon = await api("POST", "/api/article", { body: { topic: "tiktok growth" } });
+  assert.equal(anon.status, 401);
+
+  const { body: { token } } = await api("POST", "/api/auth/login", { body: { email: "creator@example.com", password: "secret123" } });
+  const gated = await api("POST", "/api/article", { token, body: { topic: "tiktok growth" } });
+  assert.equal(gated.status, 403);
+  assert.equal(gated.body.error, "premium_required");
+});
+
 test("unknown API routes return a JSON 404, not the SPA shell", async () => {
   const get = await api("GET", "/api/does-not-exist");
   assert.equal(get.status, 404);

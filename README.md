@@ -19,6 +19,10 @@ step**, so it deploys to Render in minutes.
 | 🗓 **Campaign Studio** *(Creator+)* | One theme → a full multi-day content calendar (3–14 posts) that builds an audience early and converts it late. Each post ships with an angle, hook, format, best-time-to-post and hashtags. |
 | 🔥 **Trend & Hashtag Radar** | Any idea → a growth kit: three tiers of hashtags (broad/mid/niche) with reach notes, three best-times-to-post, five high-performing hook angles, and a 0–100 **virality score** with a concrete fix. |
 | 🎨 **Brand Kit** *(Creator+)* | Save your colors, `@handle` and brand voice once — every video, poster and caption is generated on-brand automatically. |
+| 📣 **Ad Studio** *(Creator+)* | One product → five ready-to-run paid ad variations (Meta/TikTok/YouTube/Google), each testing a different angle, plus a targeting suggestion and an optimization tip. |
+| 🖱 **Thumbnail & Title Lab** | Any video idea → four title + thumbnail concepts, each scored 0–100 for predicted click-through so you post the winner instead of guessing. |
+| 🎠 **Carousel Maker** | One topic → a swipeable, save-worthy carousel (Instagram/LinkedIn) with a hook slide, one idea per slide and a ready-to-paste caption. |
+| 📰 **SEO Blog & Newsletter Writer** *(Creator+)* | One topic → a publish-ready, search-optimized article with meta title/description, headings, a Markdown body and an FAQ to repurpose into a newsletter. |
 | 🪄 **Voice & text AI editor** | Say or type "make scene 2 funnier" — the storyboard rewrites live. Voice input via the Web Speech API. |
 | 🖼 **Instant images** | Mint posters, quote cards and thumbnails as downloadable PNGs ("Smart Slides"). Plug in any image API to swap in photoreal generation. |
 | 📷 **Scan & repurpose** | Upload a screenshot, photo or doc — Claude vision reads it and turns it into content. |
@@ -33,7 +37,7 @@ Reelmint monetizes four ways, all wired end-to-end:
 
 1. **Subscriptions** — Free / Creator ($19) / Studio ($49) via Stripe Checkout + webhook.
 2. **Credit packs** — one-time top-ups (50 / 200 / 500 credits) for busy weeks; purchased credits stack on top of the monthly allowance and never expire.
-3. **Premium tools** — Campaign Studio and Brand Kit are gated to paid plans, and the credit-heavy Campaign Studio drives upgrades.
+3. **Premium tools** — Campaign Studio, Ad Studio, the SEO Writer and Brand Kit are gated to paid plans; the credit-heavy Campaign Studio and Ad Studio drive upgrades. Thumbnail Lab and Carousel Maker are open but credit-costed, so they drive credit-pack top-ups.
 4. **Referral loop** — give-10-get-10 credits turns every user into a growth channel.
 
 ## How the AI works
@@ -149,6 +153,13 @@ If a provider call fails it falls back to Smart Slides automatically.
 | `POST /api/scan` | `{base64, mediaType, instruction}` | `{text}` |
 | `POST /api/repurpose` | `{transcript, count}` | `{clips:[…]}` |
 | `POST /api/captions` | `{topic, platform, count}` | `{text}` |
+| `POST /api/campaign` | `{theme, count, platform}` (Creator+) | campaign calendar (costs 1 credit/post) |
+| `POST /api/trends` | `{topic, platform}` | growth kit (costs 1 credit) |
+| `POST /api/ads` | `{product, platform, goal}` (Creator+) | `{variations:[…], audience, tip}` (costs 1 credit) |
+| `POST /api/thumbnails` | `{topic, platform}` | `{concepts:[…], winner}` (costs 1 credit) |
+| `POST /api/carousel` | `{topic, platform, slides}` | `{title, slides:[…], caption, hashtags}` (costs 1 credit) |
+| `POST /api/article` | `{topic, keywords}` (Creator+) | SEO article `{metaTitle, body, faq, …}` (costs 2 credits) |
+| `GET/POST /api/brandkit` | `{name, handle, bg, accent, text, voice}` (Creator+) | `{brandKit}` |
 
 ---
 

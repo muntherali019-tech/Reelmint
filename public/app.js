@@ -54,6 +54,10 @@ async function init() {
   wireEditor();
   wireCampaign();
   wireTrends();
+  wireAds();
+  wireThumbnails();
+  wireCarousel();
+  wireArticle();
   wireImage();
   wireBrand();
   wireScan();
@@ -556,6 +560,199 @@ function renderTrends(t) {
     ${t.ridingTrend ? `<div class="riding">📈 ${esc(t.ridingTrend)}</div>` : ""}`;
 }
 
+// ---------- ad studio ----------
+function wireAds() {
+  const btn = $("#adBtn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const product = $("#adProduct").value.trim();
+    if (!product) return toast("Tell me what you're advertising first.");
+    if (!USER) return openAuth("signup");
+    if (!USER.premium) { toast("Ad Studio is a Creator+ feature — upgrade to unlock it."); location.hash = "#pricing"; return; }
+    busy(btn, true, "Writing…");
+    try {
+      const res = await api("/api/ads", {
+        product, platform: $("#adPlatform").value, goal: $("#adGoal").value,
+      });
+      if (res.error === "premium_required") { location.hash = "#pricing"; return toast("Upgrade to Creator to use Ad Studio."); }
+      if (res.error === "out_of_credits") { syncUser(res.user); location.hash = "#pricing"; return toast("Out of credits — top up or upgrade."); }
+      if (res.error) return toast("Couldn't write the ads — try again.");
+      syncUser(res.user);
+      renderAds(res);
+      toast(`Ad set minted 📣 — ${res.variations.length} variations ready.`);
+    } catch { toast("Ad Studio failed — try again."); }
+    finally { busy(btn, false, "📣 Write ad variations"); }
+  });
+}
+function renderAds(a) {
+  const el = $("#adsOut");
+  if (!a || !Array.isArray(a.variations)) return (el.innerHTML = "");
+  el.innerHTML = `
+    ${a.audience ? `<div class="riding">🎯 <b>Audience:</b> ${esc(a.audience)}</div>` : ""}
+    <div class="ads-grid">
+      ${a.variations.map((v) => `
+        <div class="ad-card">
+          <span class="ad-angle">${esc(v.angle || "Angle")}</span>
+          <div class="ad-primary">${esc(v.primaryText || "").replace(/\n/g, "<br>")}</div>
+          <div class="ad-headline">${esc(v.headline || "")}</div>
+          <div class="muted ad-desc">${esc(v.description || "")}</div>
+          <button class="ad-cta">${esc(v.cta || "Learn More")}</button>
+          <button class="btn btn-ghost btn-sm ad-copy" onclick="reelmintCopyText(${jsAttr(adText(v))})">⧉ Copy</button>
+        </div>`).join("")}
+    </div>
+    ${a.tip ? `<div class="riding">💡 <b>Optimize:</b> ${esc(a.tip)}</div>` : ""}`;
+}
+function adText(v) {
+  return `${v.primaryText || ""}\n\nHeadline: ${v.headline || ""}\n${v.description || ""}\nCTA: ${v.cta || ""}`;
+}
+
+// ---------- thumbnail lab ----------
+function wireThumbnails() {
+  const btn = $("#thumbBtn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const topic = $("#thumbTopic").value.trim();
+    if (!topic) return toast("Type a video topic first.");
+    busy(btn, true, "Testing…");
+    try {
+      const res = await api("/api/thumbnails", { topic, platform: $("#thumbPlatform").value });
+      if (res.error === "out_of_credits") { syncUser(res.user); location.hash = "#pricing"; return toast("Out of credits — top up or upgrade."); }
+      if (res.error) return toast("Thumbnail Lab failed — try again.");
+      if (res.user) syncUser(res.user);
+      renderThumbnails(res);
+    } catch { toast("Thumbnail Lab failed."); }
+    finally { busy(btn, false, "🖱 Generate concepts"); }
+  });
+}
+function renderThumbnails(t) {
+  const el = $("#thumbsOut");
+  if (!t || !Array.isArray(t.concepts)) return (el.innerHTML = "");
+  el.innerHTML = `<div class="thumbs-grid">
+    ${t.concepts.map((c, i) => {
+      const pal = PALETTES[i % PALETTES.length];
+      const score = Number(c.clickScore) || 0;
+      return `<div class="thumb-card ${i === (t.winner || 0) ? "winner" : ""}">
+        ${i === (t.winner || 0) ? '<span class="thumb-badge">Predicted winner</span>' : ""}
+        <div class="thumb-frame" style="background:linear-gradient(135deg, ${pal.bg}, ${pal.accent})">
+          <span class="thumb-overlay">${esc(c.overlay || "")}</span>
+          <span class="thumb-score">${score}</span>
+        </div>
+        <div class="thumb-title">${esc(c.title || "")}</div>
+        <div class="thumb-meta"><span class="chip">${esc(c.emotion || "")}</span></div>
+        <div class="muted thumb-visual">${esc(c.visual || "")}</div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+// ---------- carousel maker ----------
+function wireCarousel() {
+  const c = $("#carCount");
+  if (c) c.addEventListener("input", () => ($("#carCountLabel").textContent = c.value));
+  const btn = $("#carBtn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const topic = $("#carTopic").value.trim();
+    if (!topic) return toast("Give your carousel a topic first.");
+    busy(btn, true, "Building…");
+    try {
+      const res = await api("/api/carousel", {
+        topic, platform: $("#carPlatform").value, slides: Number($("#carCount").value),
+      });
+      if (res.error === "out_of_credits") { syncUser(res.user); location.hash = "#pricing"; return toast("Out of credits — top up or upgrade."); }
+      if (res.error) return toast("Carousel Maker failed — try again.");
+      if (res.user) syncUser(res.user);
+      renderCarousel(res);
+      toast(`Carousel minted 🎠 — ${res.slides.length} slides ready.`);
+    } catch { toast("Carousel Maker failed."); }
+    finally { busy(btn, false, "🎠 Build carousel"); }
+  });
+}
+function renderCarousel(c) {
+  const el = $("#carouselOut");
+  if (!c || !Array.isArray(c.slides)) return (el.innerHTML = "");
+  el.innerHTML = `
+    <div class="camp-head"><div class="camp-name">${esc(c.title || "Your carousel")}</div></div>
+    <div class="slides-strip">
+      ${c.slides.map((s, i) => {
+        const pal = PALETTES[i % PALETTES.length];
+        return `<div class="slide-card" style="background:linear-gradient(160deg, ${pal.bg}, ${shade(pal.bg, 22)})">
+          <span class="slide-idx" style="color:${pal.accent}">${i + 1}/${c.slides.length}</span>
+          <div class="slide-headline">${esc(s.headline || "")}</div>
+          <div class="slide-body">${esc(s.body || "")}</div>
+        </div>`;
+      }).join("")}
+    </div>
+    ${c.caption ? `<div class="slide-caption"><b>Caption</b><pre>${esc(c.caption)}</pre></div>` : ""}
+    <div class="tagline">${(c.hashtags || []).map((h) => `<span class="tag">${esc(h)}</span>`).join("")}</div>`;
+}
+
+// ---------- SEO writer ----------
+function wireArticle() {
+  const btn = $("#artBtn");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    const topic = $("#artTopic").value.trim();
+    if (!topic) return toast("Type an article topic first.");
+    if (!USER) return openAuth("signup");
+    if (!USER.premium) { toast("The SEO Writer is a Creator+ feature — upgrade to unlock it."); location.hash = "#pricing"; return; }
+    busy(btn, true, "Writing…");
+    try {
+      const res = await api("/api/article", { topic, keywords: $("#artKeywords").value.trim() });
+      if (res.error === "premium_required") { location.hash = "#pricing"; return toast("Upgrade to Creator to use the SEO Writer."); }
+      if (res.error === "out_of_credits") { syncUser(res.user); location.hash = "#pricing"; return toast("Out of credits — top up or upgrade."); }
+      if (res.error) return toast("Couldn't write the article — try again.");
+      syncUser(res.user);
+      renderArticle(res);
+      toast("Article minted 📰 — ready to publish.");
+    } catch { toast("SEO Writer failed — try again."); }
+    finally { busy(btn, false, "📰 Write article"); }
+  });
+}
+function renderArticle(a) {
+  const el = $("#articleOut");
+  if (!a || !a.body) return (el.innerHTML = "");
+  el.innerHTML = `
+    <div class="serp">
+      <div class="serp-title">${esc(a.metaTitle || "")}</div>
+      <div class="serp-url">yoursite.com/${esc(a.slug || "post")}</div>
+      <div class="serp-desc">${esc(a.metaDescription || "")}</div>
+    </div>
+    <div class="article-meta">
+      <span class="chip">⏱ ${esc(a.readTime || "—")}</span>
+      <span class="chip">${(a.headings || []).length} sections</span>
+      <button class="btn btn-ghost btn-sm" onclick="reelmintCopyText(${jsAttr(a.body)})">⧉ Copy Markdown</button>
+    </div>
+    <div class="article-body">${mdToHtml(a.body)}</div>
+    ${Array.isArray(a.faq) && a.faq.length ? `<div class="faq"><h4>FAQ</h4>${a.faq.map((f) => `<div class="faq-item"><b>${esc(f.q)}</b><p class="muted">${esc(f.a)}</p></div>`).join("")}</div>` : ""}`;
+}
+
+// Minimal, safe Markdown → HTML (headings, bold, lists, paragraphs). Escapes first.
+function mdToHtml(md) {
+  const lines = String(md).split("\n");
+  let html = "", inList = false;
+  const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  for (const raw of lines) {
+    const line = raw.trimEnd();
+    const li = line.match(/^\s*[-*]\s+(.*)$/);
+    if (li) { if (!inList) { html += "<ul>"; inList = true; } html += `<li>${inline(li[1])}</li>`; continue; }
+    if (inList) { html += "</ul>"; inList = false; }
+    const h = line.match(/^(#{1,3})\s+(.*)$/);
+    if (h) { const n = h[1].length; html += `<h${n}>${inline(h[2])}</h${n}>`; continue; }
+    if (line.trim()) html += `<p>${inline(line)}</p>`;
+  }
+  if (inList) html += "</ul>";
+  return html;
+}
+
+// Copy arbitrary text to clipboard (used by Ad Studio + SEO Writer).
+window.reelmintCopyText = (text) => {
+  navigator.clipboard?.writeText(String(text)).then(
+    () => toast("Copied to clipboard ⧉"),
+    () => toast("Copy failed — select the text manually.")
+  );
+};
+
 // ---------- brand kit ----------
 function wireBrand() {
   const save = $("#bkSave");
@@ -732,6 +929,10 @@ function renderFeatures() {
     ["🔥", "Trend & Hashtag Radar", "Tiered hashtags, best post times, high-performing hooks and a virality score for any idea."],
     ["🪄", "Voice & text editor", "Just say or type what to change. The AI rewrites your storyboard live."],
     ["🎨", "Brand Kit", "Save your colors, handle and brand voice once — every video, poster and caption stays on-brand."],
+    ["📣", "Ad Studio", "One product → five ready-to-run paid ad variations with targeting and an optimization tip."],
+    ["🖱", "Thumbnail & Title Lab", "Four title + thumbnail concepts, each scored for predicted click-through, so you post the winner."],
+    ["🎠", "Carousel Maker", "Turn one idea into a swipeable, save-worthy carousel — the format that out-reaches video on feed."],
+    ["📰", "SEO Blog & Newsletter", "One topic → a publish-ready, search-optimized article with meta tags, headings and an FAQ."],
     ["📷", "Scan anything", "Turn a screenshot, photo or doc into ready-to-post content with real vision AI."],
     ["✂️", "Repurpose long-form", "Drop a transcript, get the most clip-worthy viral moments, ranked by hook strength."],
     ["⬇", "Export in-browser", "Render and download real 8-Mbps video & PNG files — no installs, no render farm."],

@@ -61,6 +61,10 @@
             <button class="tab" data-tab="editor">🪄 AI Editor</button>
             <button class="tab" data-tab="campaign">🗓 Campaign <span class="pro-dot" title="Creator+">PRO</span></button>
             <button class="tab" data-tab="trends">🔥 Trends</button>
+            <button class="tab" data-tab="ads">📣 Ad Studio <span class="pro-dot" title="Creator+">PRO</span></button>
+            <button class="tab" data-tab="thumbnails">🖱 Thumbnails</button>
+            <button class="tab" data-tab="carousel">🎠 Carousel</button>
+            <button class="tab" data-tab="article">📰 SEO Writer <span class="pro-dot" title="Creator+">PRO</span></button>
             <button class="tab" data-tab="image">🖼 Image</button>
             <button class="tab" data-tab="brand">🎨 Brand <span class="pro-dot" title="Creator+">PRO</span></button>
             <button class="tab" data-tab="scan">📷 Scan</button>
@@ -197,6 +201,138 @@
             </div>
             <button class="btn btn-primary" id="trendBtn">🔥 Analyze trends</button>
             <div id="trendsOut" class="trends-out"></div>
+          </div>
+        </div>
+
+        <!-- AD STUDIO -->
+        <div class="panel" data-panel="ads">
+          <div class="card">
+            <div class="panel-title">
+              <div>
+                <h3>Ad Studio <span class="pill-pro">Creator+</span></h3>
+                <p class="muted">One product → five ready-to-run paid ad variations, each testing a different angle, plus targeting and an optimization tip.</p>
+              </div>
+            </div>
+            <div class="row3">
+              <label class="field span2">
+                <span>What are you advertising?</span>
+                <input id="adProduct" placeholder="e.g. a $19/mo app that writes your captions" />
+              </label>
+              <label class="field">
+                <span>Goal</span>
+                <select id="adGoal">
+                  <option value="conversions">Conversions</option>
+                  <option value="traffic">Traffic</option>
+                  <option value="awareness">Awareness</option>
+                  <option value="leads">Leads</option>
+                </select>
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">
+                <span>Platform</span>
+                <select id="adPlatform">
+                  <option value="meta">Meta (FB/IG)</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="google">Google</option>
+                </select>
+              </label>
+              <div class="field end">
+                <button class="btn btn-primary btn-block" id="adBtn">📣 Write ad variations</button>
+              </div>
+            </div>
+            <p class="hint" id="adHint"></p>
+            <div id="adsOut" class="ads-out"></div>
+          </div>
+        </div>
+
+        <!-- THUMBNAIL LAB -->
+        <div class="panel" data-panel="thumbnails">
+          <div class="card">
+            <div class="panel-title">
+              <div>
+                <h3>Thumbnail & Title Lab</h3>
+                <p class="muted">Get four title + thumbnail concepts, each scored for predicted click-through, so you post the winner — not a guess.</p>
+              </div>
+            </div>
+            <div class="row">
+              <label class="field span2">
+                <span>Video topic</span>
+                <input id="thumbTopic" placeholder="e.g. how I edit a video in 10 minutes" />
+              </label>
+              <label class="field">
+                <span>Platform</span>
+                <select id="thumbPlatform">
+                  <option value="youtube">YouTube</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="shorts">YouTube Shorts</option>
+                </select>
+              </label>
+            </div>
+            <button class="btn btn-primary" id="thumbBtn">🖱 Generate concepts</button>
+            <div id="thumbsOut" class="thumbs-out"></div>
+          </div>
+        </div>
+
+        <!-- CAROUSEL MAKER -->
+        <div class="panel" data-panel="carousel">
+          <div class="card">
+            <div class="panel-title">
+              <div>
+                <h3>Carousel Maker</h3>
+                <p class="muted">Turn one idea into a swipeable, save-worthy carousel — the format that quietly out-reaches video on the feed.</p>
+              </div>
+            </div>
+            <div class="row3">
+              <label class="field span2">
+                <span>Carousel topic</span>
+                <input id="carTopic" placeholder="e.g. 5 budgeting rules that actually stick" />
+              </label>
+              <label class="field">
+                <span>Slides: <b id="carCountLabel">6</b></span>
+                <input id="carCount" type="range" min="3" max="10" step="1" value="6" />
+              </label>
+            </div>
+            <div class="row">
+              <label class="field">
+                <span>Platform</span>
+                <select id="carPlatform">
+                  <option value="instagram">Instagram</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="tiktok">TikTok</option>
+                </select>
+              </label>
+              <div class="field end">
+                <button class="btn btn-primary btn-block" id="carBtn">🎠 Build carousel</button>
+              </div>
+            </div>
+            <div id="carouselOut" class="carousel-out"></div>
+          </div>
+        </div>
+
+        <!-- SEO WRITER -->
+        <div class="panel" data-panel="article">
+          <div class="card">
+            <div class="panel-title">
+              <div>
+                <h3>SEO Blog & Newsletter Writer <span class="pill-pro">Creator+</span></h3>
+                <p class="muted">One topic → a publish-ready, search-optimized article with meta tags, headings and an FAQ you can repurpose into a newsletter.</p>
+              </div>
+            </div>
+            <div class="row">
+              <label class="field span2">
+                <span>Article topic</span>
+                <input id="artTopic" placeholder="e.g. how to grow on TikTok as a beginner" />
+              </label>
+              <label class="field">
+                <span>Target keyword(s)</span>
+                <input id="artKeywords" placeholder="optional — e.g. tiktok growth" />
+              </label>
+            </div>
+            <button class="btn btn-primary" id="artBtn">📰 Write article</button>
+            <p class="hint" id="artHint"></p>
+            <div id="articleOut" class="article-out"></div>
           </div>
         </div>
 
