@@ -16,10 +16,30 @@ import {
   publicUser,
   spendCredit,
   refundCredit,
+  setBrandKit,
+  isPremium,
 } from "./auth.js";
-import { stripeEnabled, createCheckout, handleWebhook } from "./billing.js";
+import {
+  stripeEnabled,
+  creditPacksEnabled,
+  createCheckout,
+  createPackCheckout,
+  handleWebhook,
+  CREDIT_PACKS,
+} from "./billing.js";
 import { generateImage, imageProvider } from "./images.js";
 import { initStore, backend } from "./store.js";
+import { PROMPTS } from "./prompts.js";
+import {
+  demoStoryboard,
+  demoAssistant,
+  demoCaptions,
+  demoScan,
+  demoClips,
+  demoDesign,
+  demoCampaign,
+  demoTrends,
+} from "./demo.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
@@ -56,6 +76,9 @@ const PALETTES = [
   { bg: "#0B0716", accent: "#A66BFF", text: "#F3EDFF", muted: "#B5A6D4" },
 ];
 
+// Cost (in credits) of each paid action.
+const COST = { script: 1, campaignPerPost: 1, trends: 1 };
+
 // ---------- meta ----------
 app.get("/api/health", (_req, res) => res.json({ ok: true, ...aiStatus() }));
 
@@ -65,6 +88,8 @@ app.get("/api/config", (req, res) => {
     watermark: !NO_WATERMARK,
     plans: PLANS,
     stripe: stripeEnabled,
+    creditPacksEnabled,
+    creditPacks: CREDIT_PACKS.map(({ id, label, credits, price, best }) => ({ id, label, credits, price, best })),
     imageProvider,
     user: publicUser(req.user),
   });
@@ -73,7 +98,7 @@ app.get("/api/config", (req, res) => {
 // ---------- accounts ----------
 app.post("/api/auth/signup", async (req, res) => {
   try {
-    res.json(await signup(req.body?.email, req.body?.password));
+    res.json(await signup(req.body?.email, req.body?.password, req.body?.ref));
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
@@ -87,6 +112,21 @@ app.post("/api/auth/login", async (req, res) => {
 });
 app.get("/api/me", (req, res) => res.json({ user: publicUser(req.user) }));
 
+// ---------- brand kit (premium revenue feature) ----------
+app.get("/api/brandkit", (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Sign in first" });
+  res.json({ brandKit: req.user.brandKit || null, premium: isPremium(req.user) });
+});
+app.post("/api/brandkit", wrap(async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Sign in first" });
+  try {
+    const brandKit = await setBrandKit(req.user, req.body || {});
+    res.json({ brandKit, user: publicUser(req.user) });
+  } catch (e) {
+    res.status(403).json({ error: e.message });
+  }
+}));
+
 // ---------- billing ----------
 app.post("/api/billing/checkout", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Sign in first" });
@@ -95,6 +135,20 @@ app.post("/api/billing/checkout", async (req, res) => {
   try {
     const origin = `${req.protocol}://${req.get("host")}`;
     const url = await createCheckout({ user: req.user, plan: req.body?.plan, origin });
+    res.json({ url });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// One-time credit-pack purchase (à-la-carte revenue).
+app.post("/api/billing/credits", async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "Sign in first" });
+  if (!creditPacksEnabled)
+    return res.status(400).json({ error: "Credit packs not configured on this server" });
+  try {
+    const origin = `${req.protocol}://${req.get("host")}`;
+    const url = await createPackCheckout({ user: req.user, pack: req.body?.pack, origin });
     res.json({ url });
   } catch (e) {
     res.status(400).json({ error: e.message });
@@ -112,15 +166,14 @@ app.post("/api/script", wrap(async (req, res) => {
   } = req.body || {};
   if (!topic.trim()) return res.status(400).json({ error: "topic is required" });
 
-  const credit = await spendCredit(req.user);
+  const credit = await spendCredit(req.user, COST.script);
   if (!credit.ok)
     return res.status(402).json({ error: "out_of_credits", user: publicUser(req.user) });
 
   const sceneCount = Math.max(3, Math.min(8, Math.round(durationSec / 6)));
-  const system =
-    "You are Reelmint's director — you turn a topic into a punchy, platform-native video storyboard. " +
-    "Write a scroll-stopping hook, then scene-by-scene voiceover + on-screen captions, plus an image prompt for each scene. " +
-    "Voiceover is spoken aloud (natural, concise). Captions are short on-screen text (max ~8 words).";
+  const brandVoice = req.user?.brandKit?.voice
+    ? `\n\nMatch this brand voice: ${req.user.brandKit.voice}`
+    : "";
 
   const schema = `JSON shape: {
   "title": string,
@@ -133,7 +186,7 @@ app.post("/api/script", wrap(async (req, res) => {
   let data;
   try {
     data = await generateJSON({
-      system,
+      system: PROMPTS.director(sceneCount) + brandVoice,
       content: `Topic: ${topic}
 Platform: ${platform}
 Tone: ${tone}
@@ -141,17 +194,17 @@ Target length: ${durationSec}s (${format})
 Make exactly ${sceneCount} scenes.
 ${schema}`,
       maxTokens: 3000,
-      demo: demoStoryboard(topic, sceneCount),
+      demo: () => demoStoryboard(topic, sceneCount, { platform, tone }),
     });
   } catch (e) {
     // Generation failed after the credit was spent — refund it.
-    await refundCredit(req.user);
+    await refundCredit(req.user, COST.script);
     return res
       .status(502)
       .json({ error: "generation_failed", user: publicUser(req.user) });
   }
 
-  res.json({ ...decorateStoryboard(data), user: publicUser(req.user) });
+  res.json({ ...decorateStoryboard(data, req.user), user: publicUser(req.user) });
 }));
 
 // ---------- AI editor assistant (voice or text instructions) ----------
@@ -160,12 +213,8 @@ app.post("/api/assistant", wrap(async (req, res) => {
   if (!instruction.trim())
     return res.status(400).json({ error: "instruction is required" });
 
-  const system =
-    "You are Reelmint's AI editor. The user gives a verbal or typed instruction to change their video storyboard. " +
-    "Apply the change and return the FULL updated storyboard plus a one-sentence friendly reply describing what you changed.";
-
   const data = await generateJSON({
-    system,
+    system: PROMPTS.editor,
     content: `Current storyboard JSON:
 ${JSON.stringify(storyboard) || "none yet"}
 
@@ -173,15 +222,10 @@ User instruction: ${instruction}
 
 Return JSON: { "reply": string, "storyboard": { "title": string, "hook": string, "scenes": [{"caption": string, "voiceover": string, "imagePrompt": string}], "hashtags": [string], "description": string } }`,
     maxTokens: 3000,
-    demo: {
-      reply: aiEnabled
-        ? "Updated."
-        : "Demo mode: add your ANTHROPIC_API_KEY for real edits.",
-      storyboard: storyboard || demoStoryboard(instruction, 4),
-    },
+    demo: () => demoAssistant(instruction, storyboard),
   });
 
-  if (data.storyboard) data.storyboard = decorateStoryboard(data.storyboard);
+  if (data.storyboard) data.storyboard = decorateStoryboard(data.storyboard, req.user);
   res.json(data);
 }));
 
@@ -197,21 +241,14 @@ app.post("/api/image", wrap(async (req, res) => {
 
   // Otherwise generate a "Smart Slide" design spec the browser renders to PNG.
   const design = await generateJSON({
-    system:
-      "You are Reelmint's graphic designer. Turn the prompt into a striking poster design spec. " +
-      "Pick a cohesive palette and write a short punchy headline + sub-line.",
+    system: PROMPTS.designer,
     content: `Prompt: ${prompt}
 Style: ${style}
 Return JSON: { "headline": string, "subline": string, "palette": {"bg": string, "accent": string, "text": string}, "layout": "center" | "lower" | "split" }`,
     maxTokens: 700,
-    demo: {
-      headline: prompt.slice(0, 40),
-      subline: "Made with Reelmint",
-      palette: PALETTES[0],
-      layout: "center",
-    },
+    demo: () => demoDesign(prompt, style),
   });
-  res.json({ type: "design", design });
+  res.json({ type: "design", design: applyBrandPalette(design, req.user) });
 }));
 
 // ---------- scan & upload (vision) ----------
@@ -223,7 +260,12 @@ app.post("/api/scan", async (req, res) => {
   } = req.body || {};
   if (!base64) return res.status(400).json({ error: "base64 image is required" });
   try {
-    const text = await visionExtract({ base64, mediaType, instruction });
+    const text = await visionExtract({
+      base64,
+      mediaType,
+      instruction: `${PROMPTS.scan}\n\n${instruction}`,
+      demo: demoScan(instruction),
+    });
     res.json({ text });
   } catch (e) {
     res.status(500).json({ error: "scan failed", detail: String(e?.message || e) });
@@ -236,14 +278,13 @@ app.post("/api/repurpose", wrap(async (req, res) => {
   if (!transcript.trim())
     return res.status(400).json({ error: "transcript is required" });
   const data = await generateJSON({
-    system:
-      "You are Reelmint's clip finder. From a long transcript, find the most viral short-clip moments.",
+    system: PROMPTS.clipfinder,
     content: `Transcript:
 ${transcript.slice(0, 12000)}
 
 Return JSON: { "clips": [{ "title": string, "hook": string, "quote": string, "hashtags": [string] }] } with ${count} clips.`,
     maxTokens: 2500,
-    demo: { clips: [{ title: "Demo clip", hook: "Add your API key", quote: transcript.slice(0, 80), hashtags: ["#reelmint"] }] },
+    demo: () => demoClips(transcript, count),
   });
   res.json(data);
 }));
@@ -253,12 +294,77 @@ app.post("/api/captions", wrap(async (req, res) => {
   const { topic = "", platform = "instagram", count = 6 } = req.body || {};
   if (!topic.trim()) return res.status(400).json({ error: "topic is required" });
   const text = await generateText({
-    system:
-      "You are Reelmint's copywriter. Write scroll-stopping captions with relevant hashtags and a strong CTA.",
+    system: PROMPTS.copywriter(platform),
     content: `Write ${count} ${platform} captions about: ${topic}. Number them.`,
     maxTokens: 1200,
+    demo: demoCaptions(topic, platform, count),
   });
   res.json({ text });
+}));
+
+// ---------- NEW: campaign / content series studio (premium, credit-costed) ----------
+app.post("/api/campaign", wrap(async (req, res) => {
+  const { theme = "", count = 7, platform = "tiktok" } = req.body || {};
+  if (!theme.trim()) return res.status(400).json({ error: "theme is required" });
+  if (!req.user) return res.status(401).json({ error: "Sign in to build a campaign" });
+  if (!isPremium(req.user))
+    return res.status(403).json({ error: "premium_required", user: publicUser(req.user) });
+
+  const n = Math.max(3, Math.min(14, Number(count) || 7));
+  const cost = Math.min(n, n * COST.campaignPerPost);
+  const credit = await spendCredit(req.user, cost);
+  if (!credit.ok)
+    return res.status(402).json({ error: "out_of_credits", user: publicUser(req.user) });
+
+  let data;
+  try {
+    data = await generateJSON({
+      system: PROMPTS.strategist(n, platform),
+      content: `Theme: ${theme}
+Platform: ${platform}
+Posts: ${n}
+Return JSON: { "name": string, "bigIdea": string, "posts": [{ "day": number, "angle": string, "title": string, "hook": string, "format": string, "bestTime": string, "hashtags": [string] }] } with exactly ${n} posts.`,
+      maxTokens: 4000,
+      demo: () => demoCampaign(theme, n, { platform }),
+    });
+  } catch (e) {
+    await refundCredit(req.user, cost);
+    return res.status(502).json({ error: "generation_failed", user: publicUser(req.user) });
+  }
+  res.json({ ...data, cost, user: publicUser(req.user) });
+}));
+
+// ---------- NEW: trend & hashtag / SEO optimizer (credit-costed) ----------
+app.post("/api/trends", wrap(async (req, res) => {
+  const { topic = "", platform = "tiktok" } = req.body || {};
+  if (!topic.trim()) return res.status(400).json({ error: "topic is required" });
+
+  const credit = await spendCredit(req.user, COST.trends);
+  if (!credit.ok)
+    return res.status(402).json({ error: "out_of_credits", user: publicUser(req.user) });
+
+  let data;
+  try {
+    data = await generateJSON({
+      system: PROMPTS.trendscout,
+      content: `Topic/idea: ${topic}
+Platform: ${platform}
+Return JSON: {
+  "topic": string, "platform": string,
+  "hashtags": { "broad": [{"tag": string, "reach": string, "note": string}], "mid": [...same...], "niche": [...same...] },
+  "bestTimes": [{"window": string, "why": string}],
+  "hookAngles": [string],
+  "hookScore": {"score": number, "grade": string, "tip": string},
+  "ridingTrend": string
+}`,
+      maxTokens: 2000,
+      demo: () => demoTrends(topic, platform),
+    });
+  } catch (e) {
+    await refundCredit(req.user, COST.trends);
+    return res.status(502).json({ error: "generation_failed", user: publicUser(req.user) });
+  }
+  res.json({ ...data, user: publicUser(req.user) });
 }));
 
 // SPA fallback.
@@ -279,7 +385,7 @@ const PLANS = [
     price: "$0",
     period: "forever",
     credits: "5 videos / mo",
-    features: ["720p exports", "Reelmint watermark", "AI editor (basic)", "Smart Slide images"],
+    features: ["720p exports", "Reelmint watermark", "AI editor (basic)", "Smart Slide images", "Trend radar"],
     cta: "Start free",
   },
   {
@@ -288,7 +394,7 @@ const PLANS = [
     price: "$19",
     period: "/mo",
     credits: "100 videos / mo",
-    features: ["1080p exports", "No watermark", "Voice AI editor", "Brand kit", "Scan & repurpose"],
+    features: ["1080p exports", "No watermark", "Voice AI editor", "Brand kit", "Campaign studio", "Scan & repurpose"],
     cta: "Go Creator",
     popular: true,
   },
@@ -298,40 +404,32 @@ const PLANS = [
     price: "$49",
     period: "/mo",
     credits: "Unlimited videos",
-    features: ["4K-ready exports", "Team seats", "API access", "Priority rendering", "Custom voices"],
+    features: ["4K-ready exports", "Team seats", "API access", "Priority rendering", "Custom voices", "Everything in Creator"],
     cta: "Go Studio",
   },
 ];
 
-function decorateStoryboard(sb) {
+// Merge a user's brand palette (if any) into a design spec.
+function applyBrandPalette(design, user) {
+  const kit = user?.brandKit;
+  if (!design || !kit) return design;
+  design.palette = { bg: kit.bg, accent: kit.accent, text: kit.text };
+  return design;
+}
+
+function decorateStoryboard(sb, user) {
   if (!sb || !Array.isArray(sb.scenes)) return demoStoryboard("your idea", 4);
+  const brand = user?.brandKit;
+  const brandPal = brand ? { bg: brand.bg, accent: brand.accent, text: brand.text, muted: brand.text } : null;
   sb.scenes = sb.scenes.map((s, i) => ({
     caption: s.caption || "",
     voiceover: s.voiceover || s.caption || "",
     imagePrompt: s.imagePrompt || s.caption || sb.title || "",
-    palette: PALETTES[i % PALETTES.length],
+    palette: brandPal || PALETTES[i % PALETTES.length],
   }));
   sb.hashtags = Array.isArray(sb.hashtags) ? sb.hashtags : [];
+  if (brand?.handle) sb.brand = { handle: brand.handle, name: brand.name };
   return sb;
-}
-
-function demoStoryboard(topic, sceneCount) {
-  const t = (topic || "your big idea").trim();
-  const scenes = Array.from({ length: sceneCount }, (_, i) => ({
-    caption: i === 0 ? `Stop scrolling 👀` : `Point ${i}: why ${t} wins`,
-    voiceover:
-      i === 0
-        ? `Here's what nobody tells you about ${t}.`
-        : `Reason number ${i}: ${t} changes everything once you try it.`,
-    imagePrompt: `cinematic poster about ${t}, scene ${i + 1}`,
-  }));
-  return {
-    title: `${t} in ${sceneCount * 6}s`,
-    hook: `The truth about ${t}`,
-    scenes,
-    hashtags: ["#reelmint", "#ai", "#" + t.replace(/\s+/g, "").toLowerCase()],
-    description: `A short video about ${t}, minted with Reelmint.`,
-  };
 }
 
 const PORT = process.env.PORT || 3000;

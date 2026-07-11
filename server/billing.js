@@ -2,7 +2,7 @@
 // Gracefully no-ops when Stripe env vars are absent.
 import crypto from "node:crypto";
 import { getUserById, getUserByStripeCustomer } from "./store.js";
-import { setPlan } from "./auth.js";
+import { setPlan, grantCredits } from "./auth.js";
 
 const SECRET = process.env.STRIPE_SECRET_KEY || "";
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
@@ -11,7 +11,16 @@ const PRICES = {
   studio: process.env.STRIPE_PRICE_STUDIO || "",
 };
 
+// One-time credit packs — an à-la-carte revenue stream on top of subscriptions.
+// Each maps to a Stripe one-time Price. `credits` is granted on payment.
+export const CREDIT_PACKS = [
+  { id: "pack50", label: "50 credits", credits: 50, price: "$9", stripePrice: process.env.STRIPE_PRICE_PACK50 || "" },
+  { id: "pack200", label: "200 credits", credits: 200, price: "$29", best: true, stripePrice: process.env.STRIPE_PRICE_PACK200 || "" },
+  { id: "pack500", label: "500 credits", credits: 500, price: "$59", stripePrice: process.env.STRIPE_PRICE_PACK500 || "" },
+];
+
 export const stripeEnabled = Boolean(SECRET && (PRICES.creator || PRICES.studio));
+export const creditPacksEnabled = Boolean(SECRET && CREDIT_PACKS.some((p) => p.stripePrice));
 
 async function stripe(endpoint, params) {
   const res = await fetch(`https://api.stripe.com/v1/${endpoint}`, {
@@ -41,6 +50,26 @@ export async function createCheckout({ user, plan, origin }) {
     "metadata[plan]": plan,
     "metadata[userId]": user.id,
     success_url: `${origin}/?upgraded=${plan}`,
+    cancel_url: `${origin}/?canceled=1`,
+  });
+  return session.url;
+}
+
+// Create a one-time Checkout session for a credit pack.
+export async function createPackCheckout({ user, pack, origin }) {
+  if (!creditPacksEnabled) throw new Error("Credit packs are not configured");
+  const def = CREDIT_PACKS.find((p) => p.id === pack);
+  if (!def || !def.stripePrice) throw new Error("Unknown pack");
+  const session = await stripe("checkout/sessions", {
+    mode: "payment",
+    "line_items[0][price]": def.stripePrice,
+    "line_items[0][quantity]": "1",
+    client_reference_id: user.id,
+    customer_email: user.email,
+    "metadata[type]": "pack",
+    "metadata[credits]": String(def.credits),
+    "metadata[userId]": user.id,
+    success_url: `${origin}/?credits=${def.credits}`,
     cancel_url: `${origin}/?canceled=1`,
   });
   return session.url;
@@ -80,11 +109,16 @@ export async function handleWebhook(rawBody, sigHeader) {
   ) {
     const obj = event.data.object;
     const userId = obj.client_reference_id || obj.metadata?.userId;
-    const plan = obj.metadata?.plan;
     const user = userId ? await getUserById(userId) : null;
-    if (user && plan) {
+
+    // One-time credit pack — grant credits instead of changing plan.
+    if (user && obj.metadata?.type === "pack") {
+      const credits = Number(obj.metadata?.credits) || 0;
+      if (obj.customer) user.stripeCustomer = obj.customer;
+      await grantCredits(user, credits);
+    } else if (user && obj.metadata?.plan) {
       user.stripeCustomer = obj.customer || user.stripeCustomer;
-      await setPlan(user, plan); // setPlan persists the full user record
+      await setPlan(user, obj.metadata.plan); // setPlan persists the full user record
     }
   }
   if (event.type === "customer.subscription.deleted") {

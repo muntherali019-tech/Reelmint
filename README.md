@@ -15,20 +15,39 @@ step**, so it deploys to Render in minutes.
 
 | | |
 |---|---|
-| 🎬 **Prompt → video** | One idea → a fully storyboarded, voiced video (short or long-form). Exports a real `.webm` in the browser. |
+| 🎬 **Prompt → video** | One idea → a fully storyboarded, voiced video (short or long-form) with cinematic grain, vignette, motion and a progress bar. Exports a real 8-Mbps `.webm` in the browser. |
+| 🗓 **Campaign Studio** *(Creator+)* | One theme → a full multi-day content calendar (3–14 posts) that builds an audience early and converts it late. Each post ships with an angle, hook, format, best-time-to-post and hashtags. |
+| 🔥 **Trend & Hashtag Radar** | Any idea → a growth kit: three tiers of hashtags (broad/mid/niche) with reach notes, three best-times-to-post, five high-performing hook angles, and a 0–100 **virality score** with a concrete fix. |
+| 🎨 **Brand Kit** *(Creator+)* | Save your colors, `@handle` and brand voice once — every video, poster and caption is generated on-brand automatically. |
 | 🪄 **Voice & text AI editor** | Say or type "make scene 2 funnier" — the storyboard rewrites live. Voice input via the Web Speech API. |
 | 🖼 **Instant images** | Mint posters, quote cards and thumbnails as downloadable PNGs ("Smart Slides"). Plug in any image API to swap in photoreal generation. |
 | 📷 **Scan & repurpose** | Upload a screenshot, photo or doc — Claude vision reads it and turns it into content. |
-| ✂️ **Long-form → clips** | Paste a transcript, get the most clip-worthy viral moments. |
+| ✂️ **Long-form → clips** | Paste a transcript, get the most clip-worthy viral moments, ranked by hook strength. |
 | 👤 **Accounts + credits** | Email/password sign-in, with server-enforced monthly credits per plan (Free 5 · Creator 100 · Studio unlimited). |
-| 💸 **Live Stripe billing** | Real Stripe Checkout + webhook that upgrades the user's plan automatically. Free-tier watermark included. |
+| 💸 **Live Stripe billing** | Real Stripe Checkout + webhook for subscriptions **and** one-time credit packs. |
+| 🎁 **Referrals** | Every account gets a share link. When a friend signs up, both sides get +10 bonus credits instantly. |
+
+## Revenue features
+
+Reelmint monetizes four ways, all wired end-to-end:
+
+1. **Subscriptions** — Free / Creator ($19) / Studio ($49) via Stripe Checkout + webhook.
+2. **Credit packs** — one-time top-ups (50 / 200 / 500 credits) for busy weeks; purchased credits stack on top of the monthly allowance and never expire.
+3. **Premium tools** — Campaign Studio and Brand Kit are gated to paid plans, and the credit-heavy Campaign Studio drives upgrades.
+4. **Referral loop** — give-10-get-10 credits turns every user into a growth channel.
 
 ## How the AI works
 
-All generation runs through the **Anthropic API** (`claude-opus-4-8` by default).
-If `ANTHROPIC_API_KEY` is **not** set, Reelmint runs in **demo mode** — every
-screen is still clickable end-to-end with placeholder output, so you can deploy
-first and add the key later.
+All generation runs through the **Anthropic API** (`claude-opus-4-8` by default)
+with tuned, centralized **master prompts** (`server/prompts.js`): each route has an
+explicit expert role, hard constraints, a JSON output contract, a shared house-style
+quality bar, and JSON prefill for reliable structured output. Creative routes run
+warm (temperature `0.8`), structured routes run precise (`0.4`).
+
+If `ANTHROPIC_API_KEY` is **not** set, Reelmint runs in **demo mode** — but instead
+of "lorem ipsum" it serves genuine, **topic-aware sample content** (real hooks,
+spoken voiceover, captions, campaigns and trend kits from `server/demo.js`), so a
+live demo is fully believable end-to-end. Deploy first, add the key later.
 
 Video and image *rendering* happen entirely client-side (Canvas + MediaRecorder),
 so there's no heavy server cost — it runs comfortably on Render's free tier.
@@ -43,6 +62,17 @@ npm install
 cp .env.example .env        # then paste your ANTHROPIC_API_KEY (optional)
 npm start                   # http://localhost:3000
 ```
+
+## Testing
+
+```bash
+npm test                    # node:test — runs the whole suite, no key needed
+```
+
+The suite runs entirely in demo mode: an HTTP integration test boots the real
+server against an isolated JSON store and exercises every route (auth, credits,
+storyboard/captions/repurpose/image, billing gating), plus unit tests for the
+token signer and credit accounting. It also runs in CI on every push and PR.
 
 ## Deploy to Render
 
