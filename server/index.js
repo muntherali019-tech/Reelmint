@@ -367,6 +367,10 @@ Return JSON: {
   res.json({ ...data, user: publicUser(req.user) });
 }));
 
+// Unknown API routes should answer with a JSON 404 rather than falling through
+// to the SPA shell below (which would hand an API client an HTML page).
+app.all("/api/*", (_req, res) => res.status(404).json({ error: "not_found" }));
+
 // SPA fallback.
 app.get("*", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "index.html")));
 
