@@ -178,6 +178,16 @@ test("scan requires an image payload", async () => {
   assert.equal(r.status, 400);
 });
 
+test("unknown API routes return a JSON 404, not the SPA shell", async () => {
+  const get = await api("GET", "/api/does-not-exist");
+  assert.equal(get.status, 404);
+  assert.equal(get.body.error, "not_found");
+
+  const post = await api("POST", "/api/nope", { body: { any: "thing" } });
+  assert.equal(post.status, 404);
+  assert.equal(post.body.error, "not_found");
+});
+
 test("trend radar returns a growth kit with a hook score", async () => {
   const missing = await api("POST", "/api/trends", { body: { topic: "  " } });
   assert.equal(missing.status, 400);
