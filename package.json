@@ -10,11 +10,16 @@
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "test": "node --test"
+    "test": "node --test test/**/*.test.js",
+    "test:watch": "node --watch --test test/**/*.test.js",
+    "test:coverage": "node --test test/**/*.test.js --reporter=spec"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.0",
-    "express": "^4.19.2",
+    "@anthropic-ai/sdk": "^0.82.1",
+    "express": "^4.21.1",
     "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
   }
 }
