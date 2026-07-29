@@ -241,3 +241,24 @@ test("the seen-event list stays bounded", async () => {
   assert.ok(saved.processedEvents.length <= 50, "processedEvents must not grow without bound");
   assert.ok(saved.processedEvents.includes("evt_bulk_59"), "the most recent event is retained");
 });
+
+/* ---------- module configuration (from the suite added on main) ---------- */
+
+test("stripeEnabled and creditPacksEnabled are booleans, off without config", () => {
+  assert.equal(typeof billing.stripeEnabled, "boolean");
+  assert.equal(typeof billing.creditPacksEnabled, "boolean");
+  // No STRIPE_SECRET_KEY is set in this suite, so both must be off.
+  assert.equal(billing.stripeEnabled, false);
+  assert.equal(billing.creditPacksEnabled, false);
+});
+
+test("checkout helpers refuse to run when Stripe is not configured", async () => {
+  await assert.rejects(
+    () => billing.createCheckout({ user: { id: "u", email: "a@b.co" }, plan: "creator", origin: "http://x" }),
+    /not configured/i
+  );
+  await assert.rejects(
+    () => billing.createPackCheckout({ user: { id: "u", email: "a@b.co" }, pack: "pack50", origin: "http://x" }),
+    /not configured/i
+  );
+});

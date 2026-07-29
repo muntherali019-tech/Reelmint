@@ -11,11 +11,15 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node --test",
+    "test:watch": "node --watch --test",
     "test:coverage": "node --test --experimental-test-coverage"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.0",
-    "express": "^4.19.2",
+    "@anthropic-ai/sdk": "^0.82.1",
+    "express": "^4.21.1",
     "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
   }
 }

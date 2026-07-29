@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseLooseJSON } from "../server/ai.js";
+import { aiEnabled, aiStatus, parseLooseJSON } from "../server/ai.js";
 
 // Every structured route funnels model output through parseLooseJSON. If it ever
 // throws, a paid generation 500s after the credit has been spent — so the
@@ -73,4 +73,16 @@ test("it never throws, whatever it is handed", () => {
   for (const raw of inputs) {
     assert.doesNotThrow(() => parseLooseJSON(raw, FALLBACK), `threw on ${JSON.stringify(raw)}`);
   }
+});
+
+/* ---------- module status (from the suite added on main) ---------- */
+
+test("aiStatus reports the enabled flag and model", () => {
+  const status = aiStatus();
+  assert.ok(Object.hasOwn(status, "enabled"), "status should have an enabled property");
+  assert.ok(Object.hasOwn(status, "model"), "status should have a model property");
+});
+
+test("aiStatus reports demo mode when no API key is configured", () => {
+  if (!aiEnabled) assert.equal(aiStatus().model, "demo");
 });
