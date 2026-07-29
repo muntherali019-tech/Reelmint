@@ -15,7 +15,7 @@
     "test:coverage": "node --test --experimental-test-coverage"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.82.1",
+    "@anthropic-ai/sdk": "^0.71.2",
     "express": "^4.21.1",
     "pg": "^8.13.1"
   },
