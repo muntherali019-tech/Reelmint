@@ -1,19 +1,16 @@
 import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
-// Boots the real server against an isolated JSON store (temp DATA_DIR) and
-// drives the whole API over HTTP. No secrets required — the server runs in
-// demo mode, so every AI route returns its built-in placeholder output.
+// Runs the real app in-process against an isolated JSON store (temp DATA_DIR)
+// and drives the whole API over HTTP on an ephemeral port. No secrets required —
+// the server runs in demo mode, so every AI route returns its built-in
+// placeholder output.
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PORT = 17000 + Math.floor(Math.random() * 2000);
-const BASE = `http://127.0.0.1:${PORT}`;
-let proc, dataDir;
+let server, dataDir, BASE;
 
 const api = async (method, route, { token, body } = {}) => {
   const res = await fetch(BASE + route, {
@@ -31,22 +28,22 @@ const api = async (method, route, { token, body } = {}) => {
 
 before(async () => {
   dataDir = mkdtempSync(path.join(tmpdir(), "reelmint-test-"));
-  proc = spawn(process.execPath, [path.join(ROOT, "server", "index.js")], {
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: dataDir, AUTH_SECRET: "test-secret" },
-    stdio: "ignore",
-  });
-  for (let i = 0; i < 40; i++) {
-    try {
-      const r = await fetch(`${BASE}/api/health`);
-      if (r.ok) return;
-    } catch {}
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  throw new Error("server did not start");
+  // Env must be set before importing the server — its modules read it at load.
+  process.env.DATA_DIR = dataDir;
+  process.env.AUTH_SECRET = "test-secret";
+
+  // The app is run in-process rather than spawned: a child process is invisible
+  // to `--experimental-test-coverage`, so every route here reported 0% coverage
+  // no matter how thoroughly it was exercised.
+  const { app, initStore } = await import("../server/index.js");
+  await initStore();
+  server = app.listen(0);
+  await once(server, "listening");
+  BASE = `http://127.0.0.1:${server.address().port}`;
 });
 
-after(() => {
-  proc?.kill();
+after(async () => {
+  if (server) await new Promise((r) => server.close(r));
   if (dataDir) rmSync(dataDir, { recursive: true, force: true });
 });
 

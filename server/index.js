@@ -437,15 +437,28 @@ function decorateStoryboard(sb, user) {
 }
 
 const PORT = process.env.PORT || 3000;
-initStore()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(
-        `Reelmint on http://localhost:${PORT}  (AI: ${aiEnabled ? "live" : "demo"}, store: ${backend}, images: ${imageProvider}, stripe: ${stripeEnabled ? "on" : "off"})`
-      );
+
+// Exported so tests can drive the real app in-process. Running the server as a
+// child process hides it from `--experimental-test-coverage`, which instruments
+// only the current process — so the routes above reported 0% however thoroughly
+// they were exercised.
+export { app, initStore };
+
+// Only boot when run directly (`node server/index.js`), not when imported.
+const runDirectly =
+  process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+
+if (runDirectly) {
+  initStore()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(
+          `Reelmint on http://localhost:${PORT}  (AI: ${aiEnabled ? "live" : "demo"}, store: ${backend}, images: ${imageProvider}, stripe: ${stripeEnabled ? "on" : "off"})`
+        );
+      });
+    })
+    .catch((e) => {
+      console.error("Failed to initialize store:", e.message);
+      process.exit(1);
     });
-  })
-  .catch((e) => {
-    console.error("Failed to initialize store:", e.message);
-    process.exit(1);
-  });
+}

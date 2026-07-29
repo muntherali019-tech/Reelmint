@@ -17,6 +17,7 @@ npm install        # install deps (express, @anthropic-ai/sdk, pg)
 npm start          # run the server on http://localhost:3000
 npm run dev        # same, with --watch auto-restart
 npm test           # run the whole node:test suite (no secrets needed)
+npm run test:coverage   # same, with Node's built-in coverage report
 ```
 
 Run a single test file or a single test by name:
@@ -77,6 +78,23 @@ SDK) and no-ops cleanly when env vars are absent (`stripeEnabled` /
 and one-time credit packs (grant `bonusCredits`). The webhook
 (`/api/billing/webhook`) is **mounted before the JSON body parser** because
 signature verification needs the raw body — keep it first in `index.js`.
+
+Two properties of the webhook are load-bearing and covered by
+`test/billing.test.js` — don't regress them:
+
+- `verifySignature` rejects signatures whose timestamp is outside
+  `STRIPE_WEBHOOK_TOLERANCE` (default 300s). Stripe signs `t.payload`, so
+  without the freshness check a captured delivery replays forever. It takes
+  injectable `now`/`secret`/`toleranceSeconds` purely so this is testable.
+- Webhook side effects are **idempotent per user**: applied event ids live on
+  `user.processedEvents` (capped at 50) and re-delivered events are skipped, so
+  a retried or replayed credit-pack purchase cannot stack credits.
+
+**Tests run the app in-process.** `server/index.js` exports `{ app, initStore }`
+and only calls `app.listen` when run directly, so `test/server.test.js` can
+listen on an ephemeral port. Keep it that way: `--experimental-test-coverage`
+instruments only the current process, so spawning the server as a child hides
+`index.js`, `billing.js` and `ai.js` from the report entirely.
 
 **Rendering happens client-side.** `public/app.js` (~1000 lines, organized in
 `// ----` sections: boot, tabs, create, canvas, preview, export, editor,

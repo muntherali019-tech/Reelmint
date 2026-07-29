@@ -75,9 +75,20 @@ export async function createPackCheckout({ user, pack, origin }) {
   return session.url;
 }
 
-// Verify Stripe's webhook signature against the raw request body.
-function verifySignature(rawBody, header) {
-  if (!WEBHOOK_SECRET) return false;
+// How far out of date a signature's timestamp may be. Stripe signs `t.payload`,
+// so without checking `t` for freshness a captured webhook stays replayable
+// forever. 5 minutes matches Stripe's own default tolerance.
+const TOLERANCE_SECONDS = Number(process.env.STRIPE_WEBHOOK_TOLERANCE || 300);
+
+// Verify Stripe's webhook signature against the raw request body. `now`,
+// `secret` and `toleranceSeconds` are injectable so this can be tested without
+// touching the environment or waiting on the clock.
+export function verifySignature(
+  rawBody,
+  header,
+  { now = Date.now(), secret = WEBHOOK_SECRET, toleranceSeconds = TOLERANCE_SECONDS } = {}
+) {
+  if (!secret) return false;
   const parts = Object.fromEntries(
     String(header || "")
       .split(",")
@@ -86,8 +97,14 @@ function verifySignature(rawBody, header) {
   const t = parts.t;
   const v1 = parts.v1;
   if (!t || !v1) return false;
+
+  // Reject stale (or absurdly future-dated) signatures before spending a hash.
+  const ts = Number(t);
+  if (!Number.isFinite(ts)) return false;
+  if (Math.abs(now / 1000 - ts) > toleranceSeconds) return false;
+
   const expected = crypto
-    .createHmac("sha256", WEBHOOK_SECRET)
+    .createHmac("sha256", secret)
     .update(`${t}.${rawBody}`)
     .digest("hex");
   try {
@@ -97,33 +114,62 @@ function verifySignature(rawBody, header) {
   }
 }
 
+// Stripe delivers the same event more than once (retries, and anyone replaying a
+// captured delivery). Granting a credit pack twice is free money, so every
+// mutation is recorded against the user and skipped if already applied.
+const MAX_SEEN_EVENTS = 50;
+
+function alreadyApplied(user, eventId) {
+  if (!eventId) return false;
+  return Array.isArray(user.processedEvents) && user.processedEvents.includes(eventId);
+}
+
+function markApplied(user, eventId) {
+  if (!eventId) return;
+  const seen = Array.isArray(user.processedEvents) ? user.processedEvents : [];
+  user.processedEvents = [...seen, eventId].slice(-MAX_SEEN_EVENTS);
+}
+
 // Process a webhook. `rawBody` must be the unparsed request body (Buffer/string).
 export async function handleWebhook(rawBody, sigHeader) {
   if (!verifySignature(rawBody.toString(), sigHeader)) {
     return { ok: false, status: 400, error: "bad signature" };
   }
-  const event = JSON.parse(rawBody.toString());
+  let event;
+  try {
+    event = JSON.parse(rawBody.toString());
+  } catch {
+    return { ok: false, status: 400, error: "bad payload" };
+  }
+
   if (
     event.type === "checkout.session.completed" ||
     event.type === "customer.subscription.created"
   ) {
-    const obj = event.data.object;
+    const obj = event.data?.object || {};
     const userId = obj.client_reference_id || obj.metadata?.userId;
     const user = userId ? await getUserById(userId) : null;
+    if (user && alreadyApplied(user, event.id)) return { ok: true, status: 200, duplicate: true };
 
     // One-time credit pack — grant credits instead of changing plan.
     if (user && obj.metadata?.type === "pack") {
       const credits = Number(obj.metadata?.credits) || 0;
       if (obj.customer) user.stripeCustomer = obj.customer;
+      markApplied(user, event.id);
       await grantCredits(user, credits);
     } else if (user && obj.metadata?.plan) {
       user.stripeCustomer = obj.customer || user.stripeCustomer;
+      markApplied(user, event.id);
       await setPlan(user, obj.metadata.plan); // setPlan persists the full user record
     }
   }
   if (event.type === "customer.subscription.deleted") {
-    const user = await getUserByStripeCustomer(event.data.object.customer);
-    if (user) await setPlan(user, "free");
+    const user = await getUserByStripeCustomer(event.data?.object?.customer);
+    if (user) {
+      if (alreadyApplied(user, event.id)) return { ok: true, status: 200, duplicate: true };
+      markApplied(user, event.id);
+      await setPlan(user, "free");
+    }
   }
   return { ok: true, status: 200 };
 }
