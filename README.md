@@ -63,6 +63,12 @@ cp .env.example .env        # then paste your ANTHROPIC_API_KEY (optional)
 npm start                   # http://localhost:3000
 ```
 
+`npm start` and `npm run dev` load `.env` via Node's built-in
+`--env-file-if-exists` (no `dotenv` dependency). Real environment variables take
+precedence over the file, so `ANTHROPIC_API_KEY=sk-… npm start` still wins, and a
+missing `.env` is a no-op — which is how CI and Render run. `npm test` does *not*
+load `.env`: the suite is meant to run in demo mode against an isolated store.
+
 ## Testing
 
 ```bash
