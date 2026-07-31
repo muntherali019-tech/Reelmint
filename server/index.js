@@ -39,6 +39,10 @@ import {
   demoDesign,
   demoCampaign,
   demoTrends,
+  demoAds,
+  demoThumbnails,
+  demoArticle,
+  demoCarousel,
 } from "./demo.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -77,7 +81,7 @@ const PALETTES = [
 ];
 
 // Cost (in credits) of each paid action.
-const COST = { script: 1, campaignPerPost: 1, trends: 1 };
+const COST = { script: 1, campaignPerPost: 1, trends: 1, ads: 1, thumbnails: 1, article: 2, carousel: 1 };
 
 // ---------- meta ----------
 app.get("/api/health", (_req, res) => res.json({ ok: true, ...aiStatus() }));
@@ -362,6 +366,119 @@ Return JSON: {
     });
   } catch (e) {
     await refundCredit(req.user, COST.trends);
+    return res.status(502).json({ error: "generation_failed", user: publicUser(req.user) });
+  }
+  res.json({ ...data, user: publicUser(req.user) });
+}));
+
+// ---------- NEW: Ad Studio — paid social ad copy (premium, credit-costed) ----
+app.post("/api/ads", wrap(async (req, res) => {
+  const { product = "", platform = "meta", goal = "conversions" } = req.body || {};
+  if (!product.trim()) return res.status(400).json({ error: "product is required" });
+  if (!req.user) return res.status(401).json({ error: "Sign in to use Ad Studio" });
+  if (!isPremium(req.user))
+    return res.status(403).json({ error: "premium_required", user: publicUser(req.user) });
+
+  const credit = await spendCredit(req.user, COST.ads);
+  if (!credit.ok)
+    return res.status(402).json({ error: "out_of_credits", user: publicUser(req.user) });
+
+  let data;
+  try {
+    data = await generateJSON({
+      system: PROMPTS.adsmith(platform, goal),
+      content: `Product / offer: ${product}
+Platform: ${platform}
+Goal: ${goal}
+Return JSON: { "audience": string, "variations": [{ "angle": string, "primaryText": string, "headline": string, "description": string, "cta": string }], "tip": string } with 5 variations.`,
+      maxTokens: 2500,
+      demo: () => demoAds(product, platform, goal),
+    });
+  } catch (e) {
+    await refundCredit(req.user, COST.ads);
+    return res.status(502).json({ error: "generation_failed", user: publicUser(req.user) });
+  }
+  res.json({ ...data, user: publicUser(req.user) });
+}));
+
+// ---------- NEW: Thumbnail & Title Lab — CTR A/B concepts (credit-costed) ----
+app.post("/api/thumbnails", wrap(async (req, res) => {
+  const { topic = "", platform = "youtube" } = req.body || {};
+  if (!topic.trim()) return res.status(400).json({ error: "topic is required" });
+
+  const credit = await spendCredit(req.user, COST.thumbnails);
+  if (!credit.ok)
+    return res.status(402).json({ error: "out_of_credits", user: publicUser(req.user) });
+
+  let data;
+  try {
+    data = await generateJSON({
+      system: PROMPTS.thumbnailer(platform),
+      content: `Topic: ${topic}
+Platform: ${platform}
+Return JSON: { "topic": string, "platform": string, "concepts": [{ "title": string, "overlay": string, "visual": string, "emotion": string, "clickScore": number }], "winner": number } with 4 concepts ranked strongest first.`,
+      maxTokens: 1800,
+      demo: () => demoThumbnails(topic, platform),
+    });
+  } catch (e) {
+    await refundCredit(req.user, COST.thumbnails);
+    return res.status(502).json({ error: "generation_failed", user: publicUser(req.user) });
+  }
+  res.json({ ...data, user: publicUser(req.user) });
+}));
+
+// ---------- NEW: SEO Blog & Newsletter writer (premium, credit-costed) ----
+app.post("/api/article", wrap(async (req, res) => {
+  const { topic = "", keywords = "" } = req.body || {};
+  if (!topic.trim()) return res.status(400).json({ error: "topic is required" });
+  if (!req.user) return res.status(401).json({ error: "Sign in to use the SEO Writer" });
+  if (!isPremium(req.user))
+    return res.status(403).json({ error: "premium_required", user: publicUser(req.user) });
+
+  const credit = await spendCredit(req.user, COST.article);
+  if (!credit.ok)
+    return res.status(402).json({ error: "out_of_credits", user: publicUser(req.user) });
+
+  let data;
+  try {
+    data = await generateJSON({
+      system: PROMPTS.seowriter,
+      content: `Topic: ${topic}
+Target keyword(s): ${keywords || topic}
+Return JSON: { "metaTitle": string, "metaDescription": string, "slug": string, "readTime": string, "headings": [string], "body": string, "faq": [{ "q": string, "a": string }] }. The body is a full Markdown article.`,
+      maxTokens: 3500,
+      demo: () => demoArticle(topic, keywords),
+    });
+  } catch (e) {
+    await refundCredit(req.user, COST.article);
+    return res.status(502).json({ error: "generation_failed", user: publicUser(req.user) });
+  }
+  res.json({ ...data, cost: COST.article, user: publicUser(req.user) });
+}));
+
+// ---------- NEW: Carousel Maker — swipeable multi-slide posts (credit-costed) ----
+app.post("/api/carousel", wrap(async (req, res) => {
+  const { topic = "", platform = "instagram", slides = 6 } = req.body || {};
+  if (!topic.trim()) return res.status(400).json({ error: "topic is required" });
+
+  const credit = await spendCredit(req.user, COST.carousel);
+  if (!credit.ok)
+    return res.status(402).json({ error: "out_of_credits", user: publicUser(req.user) });
+
+  const n = Math.max(3, Math.min(10, Number(slides) || 6));
+  let data;
+  try {
+    data = await generateJSON({
+      system: PROMPTS.carouselist(platform),
+      content: `Topic: ${topic}
+Platform: ${platform}
+Slides: ${n}
+Return JSON: { "title": string, "slides": [{ "headline": string, "body": string }], "caption": string, "hashtags": [string] } with exactly ${n} slides.`,
+      maxTokens: 2200,
+      demo: () => demoCarousel(topic, platform, n),
+    });
+  } catch (e) {
+    await refundCredit(req.user, COST.carousel);
     return res.status(502).json({ error: "generation_failed", user: publicUser(req.user) });
   }
   res.json({ ...data, user: publicUser(req.user) });

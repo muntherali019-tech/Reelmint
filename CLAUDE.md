@@ -49,14 +49,19 @@ structured routes precise (temp 0.4). All system prompts live centrally in
 `HOUSE_STYLE` guardrails) — edit prompts there, not inline in routes.
 
 **Credit accounting is server-enforced and spend-then-refund.** Paid routes in
-`server/index.js` (`/api/script`, `/api/campaign`, `/api/trends`) call
-`spendCredit(user, cost)` *before* generating, and `refundCredit` in the catch
-block if generation throws — so a failed AI call never charges the user. Cost
-per action is the `COST` map in `index.js`. `spendCredit` drains the monthly
-allowance first, then `bonusCredits` (from packs/referrals); `publicUser` is the
-canonical serialization returned to the client and recomputes `creditsLeft`.
-Anonymous users (`req.user === null`) are intentionally *not* gated so the demo
-stays open — `spendCredit(null)` returns `{ ok: true, anonymous: true }`.
+`server/index.js` (`/api/script`, `/api/campaign`, `/api/trends`, `/api/ads`,
+`/api/thumbnails`, `/api/carousel`, `/api/article`) call `spendCredit(user, cost)`
+*before* generating, and `refundCredit` in the catch block if generation throws —
+so a failed AI call never charges the user. Cost per action is the `COST` map in
+`index.js`. `spendCredit` drains the monthly allowance first, then `bonusCredits`
+(from packs/referrals); `publicUser` is the canonical serialization returned to
+the client and recomputes `creditsLeft`. Anonymous users (`req.user === null`)
+are intentionally *not* gated so the demo stays open — `spendCredit(null)`
+returns `{ ok: true, anonymous: true }`. Premium-only tools (`/api/campaign`,
+`/api/ads`, `/api/article`, plus Brand Kit) additionally gate on `isPremium(user)`
+and return a `premium_required` error; credit-costed open tools (`/api/thumbnails`,
+`/api/carousel`, `/api/trends`) charge credits but stay usable by any signed-in
+user.
 
 **Auth is dependency-free** (`server/auth.js`): scrypt password hashing and
 HMAC-signed `userId.exp.sig` tokens (no JWT lib). `attachUser` middleware sets

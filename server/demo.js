@@ -378,6 +378,151 @@ export function demoTrends(topic, platform = "tiktok") {
   };
 }
 
+// ---- NEW: paid ads (Ad Studio) -------------------------------------------
+
+export function demoAds(product, platform = "meta", goal = "conversions") {
+  const s = subject(product);
+  const cat = categorize(product);
+  const t = titleCase(s);
+  // Five angle templates so each variation tests something different.
+  const variations = [
+    {
+      angle: "Pain",
+      primaryText: `Still fighting with ${s}?\nYou're doing it on hard mode — and it's costing you.\nThere's a faster way.`,
+      headline: `Stop wasting time`,
+      description: `The shortcut to ${s}, minus the guesswork.`,
+      cta: "Learn More",
+    },
+    {
+      angle: "Desire",
+      primaryText: `Imagine ${s} actually working for you by next week.\nNo fluff. No 40-tab spreadsheet.\nJust the result.`,
+      headline: `${t}, handled`,
+      description: `What you'd build if you had the time.`,
+      cta: "Get Offer",
+    },
+    {
+      angle: "Proof",
+      primaryText: `12,000+ creators switched last month.\nThe reason is boring: it just works.\nSee why they didn't look back.`,
+      headline: `Why they switched`,
+      description: `Loved by people who hate hype.`,
+      cta: "Shop Now",
+    },
+    {
+      angle: "Curiosity",
+      primaryText: `The ${s} trick nobody posts about.\nIt takes 3 minutes and feels like cheating.\nHere's the whole thing 👇`,
+      headline: `The 3-minute fix`,
+      description: `Steal the exact setup.`,
+      cta: "Sign Up",
+    },
+    {
+      angle: "Urgency",
+      primaryText: `Launch pricing ends Sunday.\nAfter that, ${s} goes back to full price.\nLock it in while it's here.`,
+      headline: `Ends Sunday`,
+      description: `Best price you'll see this year.`,
+      cta: "Book Now",
+    },
+  ];
+  return {
+    platform,
+    goal,
+    audience: `Warm lookalike of your buyers + interest stack around ${cat} (age 24–45), broad placements, let the algorithm find winners.`,
+    variations,
+    tip: goal === "awareness"
+      ? "Lead with the boldest hook in the first line — cost-per-thousand rewards a strong thumb-stop, not a hard sell."
+      : "Kill any variation under a 1% CTR after 1,000 impressions and pour budget into the top angle.",
+  };
+}
+
+// ---- NEW: thumbnail & title lab ------------------------------------------
+
+export function demoThumbnails(topic, platform = "youtube") {
+  const s = subject(topic);
+  const t = titleCase(s);
+  const seed = Math.abs(hashStr(s));
+  const concepts = [
+    { title: `I tried ${s} for 30 days`, overlay: "30 DAYS", visual: `confident creator mid-gesture, split before/after of ${s}, high-contrast lighting, punchy yellow arrow`, emotion: "curiosity" },
+    { title: `${t} is a lie`, overlay: "IT'S A LIE", visual: `close-up shocked expression, bold red X over a common ${s} cliché, dark moody background`, emotion: "shock" },
+    { title: `The ${s} nobody shows you`, overlay: "HIDDEN", visual: `hand revealing a hidden object, dramatic rim light, one vivid accent color on black`, emotion: "FOMO" },
+    { title: `Do this before ${s}`, overlay: "DO THIS FIRST", visual: `pointing to a clean checklist graphic, bright optimistic palette, big legible numerals`, emotion: "desire" },
+  ];
+  // Deterministic but spread-out scores that feel earned (82 → 61).
+  const scored = concepts
+    .map((c, i) => ({ ...c, clickScore: 82 - i * 7 + ((seed >> i) % 4) }))
+    .sort((a, b) => b.clickScore - a.clickScore);
+  return { topic: s, platform, concepts: scored, winner: 0 };
+}
+
+// ---- NEW: SEO blog & newsletter ------------------------------------------
+
+export function demoArticle(topic, keywords = "") {
+  const s = subject(topic);
+  const t = titleCase(s);
+  const kw = String(keywords || s).split(",")[0].trim() || s;
+  const cat = categorize(topic);
+  const body = [
+    `# ${t}: The Practical Guide`,
+    ``,
+    `Most advice about ${s} is vague. This is the version you can act on today — no fluff, just the moves that matter.`,
+    ``,
+    `## Why ${t} Actually Matters`,
+    ``,
+    `The creators who win with ${s} aren't more talented — they're more consistent. They pick one system and run it long enough to compound.`,
+    ``,
+    `## The 3 Steps That Move the Needle`,
+    ``,
+    `- **Start smaller than feels serious.** Momentum beats motivation every time.`,
+    `- **Measure one number.** What you track improves; what you ignore drifts.`,
+    `- **Ship before it's perfect.** A rough post today beats a flawless one stuck in drafts.`,
+    ``,
+    `## Common Mistakes to Avoid`,
+    ``,
+    `Chasing every trend, copying without adapting, and quitting right before the payoff. Consistency is the unglamorous cheat code.`,
+    ``,
+    `## Bottom Line`,
+    ``,
+    `Treat ${s} as a streak, not a sprint. Pick one step above and start it this week.`,
+  ].join("\n");
+  return {
+    metaTitle: `${t}: The Practical Guide`.slice(0, 60),
+    metaDescription: `A no-fluff guide to ${s} — the exact steps, the mistakes to skip, and how to stay consistent enough to see results.`.slice(0, 155),
+    slug: slug(kw) + "-guide",
+    readTime: "4 min",
+    headings: [`Why ${t} Actually Matters`, "The 3 Steps That Move the Needle", "Common Mistakes to Avoid", "Bottom Line"],
+    body,
+    faq: [
+      { q: `How long until ${s} shows results?`, a: `Most people see early signal in 2–4 weeks of consistent effort — the compounding starts after that.` },
+      { q: `Do I need special tools for ${s}?`, a: `No. Start with what you have; add tools only once a step becomes a repeated bottleneck.` },
+      { q: `What's the single biggest mistake?`, a: `Quitting during the boring middle. Protect the streak and the results follow.` },
+    ],
+    keyword: kw,
+    category: cat,
+  };
+}
+
+// ---- NEW: carousel / multi-slide -----------------------------------------
+
+export function demoCarousel(topic, platform = "instagram", slideCount = 6) {
+  const s = subject(topic);
+  const cat = categorize(topic);
+  const t = titleCase(s);
+  const middle = beats(cat, s); // reuse the storyboard value-beat bank
+  const n = Math.max(3, Math.min(10, Number(slideCount) || 6));
+  const slides = [
+    { headline: `${t}, in ${n} slides`, body: `Save this — you'll want it later. Here's the version nobody hands you for free.` },
+  ];
+  for (let i = 0; i < n - 2; i++) {
+    const [cap, vo] = middle[i % middle.length];
+    slides.push({ headline: cap, body: vo });
+  }
+  slides.push({ headline: "Save & follow", body: `Follow for one of these a day. Save this so it's there when you need it.` });
+  return {
+    title: `${t}: the swipe-worthy version`,
+    slides: slides.slice(0, n),
+    caption: `${(HOOK_OPENERS[Math.abs(hashStr(s)) % HOOK_OPENERS.length])(s)}\n\nSwipe through, then save it for later 🔖`,
+    hashtags: tags(topic),
+  };
+}
+
 // ---- helpers -------------------------------------------------------------
 
 function hashStr(s) {
