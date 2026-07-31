@@ -19,6 +19,15 @@ describe("Auth Module", () => {
       assert.strictEqual(result, null, "Invalid token should return null");
     });
 
+    it("should reject a tampered signature", () => {
+      const token = makeToken("user-123");
+      const tampered = token.slice(0, -1) + (token.endsWith("a") ? "b" : "a");
+      assert.strictEqual(verifyToken(tampered), null, "Tampered token should not verify");
+      assert.strictEqual(verifyToken(""), null);
+      assert.strictEqual(verifyToken(null), null);
+      assert.strictEqual(verifyToken("only.two"), null);
+    });
+
     it("should reject malformed tokens", () => {
       const result = verifyToken("not-a-token");
       assert.strictEqual(result, null, "Malformed token should return null");
