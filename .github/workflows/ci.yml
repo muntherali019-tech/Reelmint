@@ -33,6 +33,12 @@ jobs:
       - name: Run tests
         run: npm test
 
+      # Reported, not gated. The app runs in-process in tests so this actually
+      # covers server/index.js, billing.js and ai.js — a spawned server would be
+      # invisible to the instrumentation and silently report 0%.
+      - name: Coverage report
+        run: npm run test:coverage
+
       - name: Smoke-test server (demo mode)
         run: |
           PORT=3000 node server/index.js &

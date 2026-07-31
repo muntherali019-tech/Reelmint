@@ -12,11 +12,11 @@
     "dev": "node --watch --env-file-if-exists=.env server/index.js",
     "test": "node --test test/**/*.test.js",
     "test:watch": "node --watch --test test/**/*.test.js",
-    "test:coverage": "node --test test/**/*.test.js --reporter=spec"
+    "test:coverage": "node --test --experimental-test-coverage test/**/*.test.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.71.0",
-    "express": "^4.19.2",
+    "@anthropic-ai/sdk": "^0.71.2",
+    "express": "^4.21.1",
     "pg": "^8.13.1"
   },
   "devDependencies": {

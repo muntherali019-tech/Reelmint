@@ -32,12 +32,14 @@ function newReferralCode() {
 }
 
 // ---- password hashing (scrypt) ----
-function hashPassword(password) {
+// Exported for testing: test/auth.test.js exercises them directly. They are pure
+// crypto helpers and hold no secrets of their own.
+export function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = crypto.scryptSync(password, salt, 64).toString("hex");
   return `${salt}:${hash}`;
 }
-function verifyPassword(password, stored) {
+export function verifyPassword(password, stored) {
   const [salt, hash] = String(stored).split(":");
   if (!salt || !hash) return false;
   const test = crypto.scryptSync(password, salt, 64).toString("hex");

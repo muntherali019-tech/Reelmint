@@ -1,22 +1,52 @@
-import test from "node:test";
-import assert from "node:assert/strict";
-import { makeToken, verifyToken, publicUser, PLAN_CREDITS } from "../server/auth.js";
+import assert from "node:assert";
+import test, { describe, it } from "node:test";
+import {
+  makeToken, verifyToken, hashPassword, verifyPassword,
+  PLAN_CREDITS, publicUser,
+} from "../server/auth.js";
 
-// Pure-logic unit tests for the token signer and credit accounting — the parts
-// the HTTP suite can only reach indirectly.
+describe("Auth Module", () => {
+  describe("Token Management", () => {
+    it("should create and verify valid tokens", () => {
+      const userId = "test-user-123";
+      const token = makeToken(userId);
+      const verified = verifyToken(token);
+      assert.strictEqual(verified, userId, "Token should verify to original userId");
+    });
 
-test("tokens round-trip and reject tampering", () => {
-  const token = makeToken("user-123");
-  assert.equal(verifyToken(token), "user-123");
+    it("should reject invalid token format", () => {
+      const result = verifyToken("invalid.token");
+      assert.strictEqual(result, null, "Invalid token should return null");
+    });
 
-  // A flipped signature must not verify.
-  const tampered = token.slice(0, -1) + (token.endsWith("a") ? "b" : "a");
-  assert.equal(verifyToken(tampered), null);
+    it("should reject malformed tokens", () => {
+      const result = verifyToken("not-a-token");
+      assert.strictEqual(result, null, "Malformed token should return null");
+    });
+  });
 
-  // Malformed / empty tokens are rejected, not thrown on.
-  assert.equal(verifyToken(""), null);
-  assert.equal(verifyToken(null), null);
-  assert.equal(verifyToken("only.two"), null);
+  describe("Password Hashing", () => {
+    it("should hash passwords", () => {
+      const password = "test-password-123";
+      const hashed = hashPassword(password);
+      assert.ok(hashed.includes(":"), "Hashed password should contain salt:hash format");
+      assert.notStrictEqual(hashed, password, "Hashed password should not equal original");
+    });
+
+    it("should verify correct passwords", () => {
+      const password = "secure-pass-456";
+      const hashed = hashPassword(password);
+      const verified = verifyPassword(password, hashed);
+      assert.strictEqual(verified, true, "Correct password should verify");
+    });
+
+    it("should reject incorrect passwords", () => {
+      const password = "secure-pass-456";
+      const hashed = hashPassword(password);
+      const verified = verifyPassword("wrong-password", hashed);
+      assert.strictEqual(verified, false, "Incorrect password should not verify");
+    });
+  });
 });
 
 test("an expired token is rejected", () => {

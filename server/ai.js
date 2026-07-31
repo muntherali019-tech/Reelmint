@@ -98,7 +98,10 @@ export async function visionExtract({ base64, mediaType, instruction, demo = "" 
   });
 }
 
-function parseLooseJSON(raw, fallback) {
+// Models wrap JSON in code fences, prefix it with prose, or truncate it. This is
+// the boundary every structured route depends on, so it never throws — it falls
+// back to the route's demo content instead. Exported for testing.
+export function parseLooseJSON(raw, fallback) {
   if (!raw) return fallback;
   let text = String(raw).trim();
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
