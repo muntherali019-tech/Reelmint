@@ -57,7 +57,8 @@ so there's no heavy server cost — it runs comfortably on Render's free tier.
 ## Run locally
 
 ```bash
-cd reelmint
+git clone https://github.com/muntherali019-tech/Reelmint.git
+cd Reelmint
 npm install
 cp .env.example .env        # then paste your ANTHROPIC_API_KEY (optional)
 npm start                   # http://localhost:3000
@@ -82,21 +83,26 @@ token signer and credit accounting. It also runs in CI on every push and PR.
 
 ## Deploy to Render
 
-**Option A — Blueprint (recommended).** This repo ships `reelmint/render.yaml`.
+**Option A — Blueprint (recommended).** This repo ships `render.yaml` at its root.
 
 1. Push to GitHub.
 2. Render → **New → Blueprint** → pick this repo.
-3. Render reads `reelmint/render.yaml` and creates the service.
-4. Add `ANTHROPIC_API_KEY` in the dashboard (marked secret).
+3. Render reads `render.yaml` and creates the web service plus a free Postgres,
+   generating `AUTH_SECRET` for you.
+4. Add `ANTHROPIC_API_KEY` in the dashboard (marked secret). Without it the
+   deploy still works and serves demo mode.
 
 **Option B — Manual web service.**
 
 - New → **Web Service** → connect the repo.
-- **Root Directory:** `reelmint`
+- **Root Directory:** leave blank — the app lives at the repo root.
 - **Build:** `npm install`
 - **Start:** `npm start`
 - **Health check path:** `/api/health`
 - Add env var `ANTHROPIC_API_KEY`.
+
+Render deploys the repository's **default branch**, so make sure that's the
+branch you want live before applying the blueprint.
 
 The server binds to `process.env.PORT` (Render sets it automatically).
 
