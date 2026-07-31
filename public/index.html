@@ -9,17 +9,41 @@
       name="description"
       content="Reelmint is the AI studio that mints short & long-form videos, scroll-stopping images and copy from a single prompt — with a voice-or-text AI editor, scan & repurpose, and one-click export."
     />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='24' fill='%235B8CFF'/%3E%3Ctext x='50' y='70' font-size='60' text-anchor='middle' fill='white' font-family='Arial'%3ER%3C/text%3E%3C/svg%3E" />
+    <link rel="canonical" href="https://reelmint.app/" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph / social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Reelmint" />
+    <meta property="og:title" content="Reelmint — Mint videos, images & copy from one prompt" />
+    <meta property="og:description" content="Type or speak an idea. Reelmint writes the script, designs every frame, voices it, and exports a ready-to-post video — short or long." />
+    <meta property="og:image" content="/icon.svg" />
+    <meta property="og:url" content="https://reelmint.app/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Reelmint — Mint videos, images & copy from one prompt" />
+    <meta name="twitter:description" content="The AI studio that mints short & long-form videos, images and copy from a single prompt." />
+    <meta name="twitter:image" content="/icon.svg" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Reelmint" />
+
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#studio">Skip to the studio</a>
     <header class="nav">
       <a class="brand" href="#top">
-        <span class="logo">◉</span> Reelmint
+        <span class="logo" aria-hidden="true">◉</span> Reelmint
       </a>
       <nav class="nav-links">
         <a href="#studio">Studio</a>
         <a href="#features">Features</a>
+        <a href="#store">Store</a>
         <a href="#pricing">Pricing</a>
         <a class="btn btn-ghost" id="statusPill" href="#studio">●</a>
         <button class="btn btn-ghost" id="accountBtn">Sign in</button>
@@ -113,7 +137,7 @@
 
             <div class="preview card">
               <div class="player">
-                <canvas id="stage" width="540" height="960"></canvas>
+                <canvas id="stage" width="540" height="960" role="img" aria-label="Video storyboard preview"></canvas>
                 <div class="player-bar">
                   <button class="btn btn-ghost" id="playBtn">▶ Preview</button>
                   <button class="btn btn-ghost" id="exportBtn">⬇ Export video</button>
@@ -386,7 +410,7 @@
               <button class="btn btn-primary btn-block" id="imgBtn">🖼 Generate image</button>
             </div>
             <div class="preview card center">
-              <canvas id="imgStage" width="600" height="600"></canvas>
+              <canvas id="imgStage" width="600" height="600" role="img" aria-label="Generated image preview"></canvas>
               <button class="btn btn-ghost" id="imgDownload">⬇ Download PNG</button>
             </div>
           </div>
@@ -446,6 +470,46 @@
           </div>
         </div>
       </section>
+
+      <!-- STORE -->
+      <section id="store" class="store">
+        <h2>Top up & shop the marketplace</h2>
+        <p class="section-sub">
+          Out of credits? Grab a pay-as-you-go pack — no subscription. Or unlock a
+          premium, ready-to-mint template pack built by top creators.
+        </p>
+
+        <h3 class="store-h">⚡ Credit packs</h3>
+        <p class="store-note">One-time top-ups. Credits never expire.</p>
+        <div class="store-grid" id="creditPacks"></div>
+
+        <h3 class="store-h">🧩 Add-ons</h3>
+        <p class="store-note">Bolt extra power onto any plan.</p>
+        <div class="store-grid" id="addOns"></div>
+
+        <h3 class="store-h">🛍 Template Marketplace</h3>
+        <p class="store-note">Premium storyboard &amp; brand packs. Buy once, mint forever.</p>
+        <div class="store-grid market" id="templates"></div>
+      </section>
+
+      <!-- REFERRAL -->
+      <section id="referral" class="referral">
+        <div class="referral-card card">
+          <div class="referral-copy">
+            <h2>Give 25 credits, get 25 credits</h2>
+            <p class="muted">
+              Share your link. When a friend signs up, you <b>both</b> get 25 free
+              render credits — instantly.
+            </p>
+            <div class="referral-row" id="referralRow">
+              <input id="referralLink" readonly placeholder="Sign in to get your link" />
+              <button class="btn btn-primary" id="referralCopy">Copy link</button>
+            </div>
+            <p class="hint" id="referralStats"></p>
+          </div>
+          <div class="referral-badge" aria-hidden="true">＋25</div>
+        </div>
+      </section>
     </main>
 
     <footer class="foot">
@@ -454,9 +518,9 @@
     </footer>
 
     <!-- AUTH MODAL -->
-    <div class="modal" id="authModal" hidden>
+    <div class="modal" id="authModal" role="dialog" aria-modal="true" aria-labelledby="authTitle" hidden>
       <div class="modal-card">
-        <button class="modal-x" id="authClose">✕</button>
+        <button class="modal-x" id="authClose" aria-label="Close">✕</button>
         <h3 id="authTitle">Sign in to Reelmint</h3>
         <p class="muted" id="authSub">Sign in to track credits and upgrade your plan.</p>
         <label class="field"><span>Email</span><input id="authEmail" type="email" placeholder="you@email.com" /></label>
@@ -470,7 +534,7 @@
       </div>
     </div>
 
-    <div class="toast" id="toast"></div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
     <script src="/app.js"></script>
   </body>
 </html>
