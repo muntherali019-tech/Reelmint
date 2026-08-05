@@ -421,7 +421,9 @@
           <div class="card">
             <p class="muted">Upload a screenshot, photo, whiteboard or doc — Reelmint reads it and repurposes it into content.</p>
             <div class="row">
+              <label class="sr-only" for="scanFile">Image or document to scan</label>
               <input type="file" id="scanFile" accept="image/*" />
+              <label class="sr-only" for="scanInstruction">What to do with it</label>
               <input id="scanInstruction" placeholder="What should I do with it? (default: 3 captions)" />
             </div>
             <button class="btn btn-primary" id="scanBtn">📷 Scan & repurpose</button>
@@ -465,8 +467,9 @@
             <p class="muted">Share your link. When a friend signs up you both get 10 bonus credits — instantly.</p>
           </div>
           <div class="referral-share">
-            <input id="referralLink" readonly />
-            <button class="btn btn-primary" id="referralCopy">Copy link</button>
+            <label class="sr-only" for="referralLink">Your referral link</label>
+            <input id="referralLink" class="js-referral-link" readonly />
+            <button class="btn btn-primary js-referral-copy">Copy link</button>
           </div>
         </div>
       </section>
@@ -496,18 +499,19 @@
       <section id="referral" class="referral">
         <div class="referral-card card">
           <div class="referral-copy">
-            <h2>Give 25 credits, get 25 credits</h2>
+            <h2>Give 10 credits, get 10 credits</h2>
             <p class="muted">
-              Share your link. When a friend signs up, you <b>both</b> get 25 free
+              Share your link. When a friend signs up, you <b>both</b> get 10 free
               render credits — instantly.
             </p>
             <div class="referral-row" id="referralRow">
-              <input id="referralLink" readonly placeholder="Sign in to get your link" />
-              <button class="btn btn-primary" id="referralCopy">Copy link</button>
+              <label class="sr-only" for="referralLinkHero">Your referral link</label>
+              <input id="referralLinkHero" class="js-referral-link" readonly placeholder="Sign in to get your link" />
+              <button class="btn btn-primary js-referral-copy">Copy link</button>
             </div>
             <p class="hint" id="referralStats"></p>
           </div>
-          <div class="referral-badge" aria-hidden="true">＋25</div>
+          <div class="referral-badge" aria-hidden="true">＋10</div>
         </div>
       </section>
     </main>

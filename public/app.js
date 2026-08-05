@@ -3,6 +3,7 @@
 // .webm video via MediaRecorder.
 
 const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
 
 let TOKEN = localStorage.getItem("reelmint_token") || "";
 const api = (path, body) =>
@@ -1005,20 +1006,28 @@ window.reelmintBuyPack = async (id) => {
 };
 
 // ---------- referral ----------
+// There are two referral surfaces — the signed-in card in the studio and the
+// landing-page section — so these work over every instance. They used to share
+// one id, which meant querySelector only ever found the first: the landing-page
+// input was never filled in and its Copy button had no listener at all.
 function renderReferral() {
   const card = $("#referralCard");
   if (!USER || !USER.referralCode) return (card.hidden = true);
   card.hidden = false;
-  $("#referralLink").value = `${location.origin}/?ref=${USER.referralCode}`;
+  const link = `${location.origin}/?ref=${USER.referralCode}`;
+  $$(".js-referral-link").forEach((el) => { el.value = link; });
 }
 function wireReferral() {
-  $("#referralCopy")?.addEventListener("click", () => {
-    const el = $("#referralLink");
-    el.select();
-    navigator.clipboard?.writeText(el.value).then(
-      () => toast("Referral link copied 🔗"),
-      () => toast("Copy failed — select and copy manually.")
-    );
+  $$(".js-referral-copy").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const el = btn.closest(".referral-share, .referral-row")?.querySelector(".js-referral-link");
+      if (!el || !el.value) return toast("Sign in to get your link");
+      el.select();
+      navigator.clipboard?.writeText(el.value).then(
+        () => toast("Referral link copied 🔗"),
+        () => toast("Copy failed — select and copy manually.")
+      );
+    });
   });
 }
 
