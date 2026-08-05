@@ -341,3 +341,10 @@ input[type="color"] { height: 42px; padding: 4px; cursor: pointer; }
   .span2 { grid-column: auto; }
   .nav-links a:not(.btn):not(#statusPill) { display: none; }
 }
+
+/* Visually hidden, still announced by screen readers. Use for labels on inputs
+   whose purpose is obvious to sighted users from surrounding copy. */
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0;
+}
