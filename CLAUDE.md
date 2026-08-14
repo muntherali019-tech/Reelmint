@@ -10,8 +10,8 @@ voice/text AI editor. There is **zero build step** — `server/` is the API,
 `public/` is the browser app served statically. It deploys to Render as one
 web service.
 
-The project was extracted out of a larger repo into this standalone one; a few
-modules came across without their wiring — see [Unwired modules](#unwired-modules)
+The project was extracted out of a larger repo into this standalone one; one
+module came across without its wiring — see [Unwired modules](#unwired-modules)
 before assuming a feature is live.
 
 ## Commands
@@ -53,11 +53,11 @@ server/
   images.js      Real image providers → falls back to a browser-rendered design spec
   store.js       Persistence: Postgres (DATABASE_URL) or JSON file, one async API
   products.js    Product catalog — plans, credit packs, addons, templates  ⚠ unwired
-  security.js    securityHeaders / cors / rateLimit middleware              ⚠ unwired
+  security.js    securityHeaders / cors / rateLimit middleware (mounted in index.js)
 public/
   index.html, app.js, styles.css     The browser app (~1200-line app.js, no bundler)
   manifest.webmanifest, icon.svg     PWA manifest (linked from index.html)
-  sw.js                              Service worker                         ⚠ never registered
+  sw.js                              Service worker (registered from app.js boot)
   robots.txt, sitemap.xml            SEO
 test/            node:test suites (see Testing) + test/README.md
 OPTIMIZATION.md  History of the optimization passes ⚠ describes some things as wired that aren't
@@ -150,9 +150,37 @@ which keeps it cheap on Render's free tier. `/api/image` tries a real image
 provider first (`server/images.js`) and falls back to a browser-rendered design
 spec if none is configured.
 
+## Hardening (live — don't regress it)
+
+`server/security.js` is mounted in `index.js` and covered by `test/security.test.js`:
+
+- **Security headers + CSP** on every response, before the static handler, so they
+  apply to the app shell and to error responses too. `x-powered-by` is disabled.
+  **`script-src` is `'self'` with no `'unsafe-inline'`** — the app has no inline
+  event handlers, no `eval`, and fetches only same-origin, so keep it that way. A
+  new inline `<script>` or `onclick=` attribute will be silently blocked in the
+  browser. `img-src`/`media-src` allow `blob:` because the canvas `.webm` export
+  needs them. HSTS is production-only.
+- **CORS is closed by default** (same-origin). Set `CORS_ORIGIN` to a
+  comma-separated allowlist to let named origins call the API.
+- **Rate limits**, per IP, fixed window, in memory:
+
+  | Scope | Default | Env overrides |
+  |---|---|---|
+  | The 12 AI routes (`AI_ROUTES` in `index.js`) | 30 / minute | `RATE_LIMIT_AI_MAX`, `RATE_LIMIT_AI_WINDOW_MS` |
+  | `/api/auth/signup`, `/api/auth/login` | 20 / 15 min | `RATE_LIMIT_AUTH_MAX`, `RATE_LIMIT_AUTH_WINDOW_MS` |
+
+  **Add every new AI-backed route to `AI_ROUTES`** — the limiter is mounted by
+  path, so a route not on that list is unlimited and can burn the API budget.
+  Counts are per process and in memory: they reset on restart and don't add up
+  across instances, so a multi-instance deploy multiplies the effective limit.
+
+`public/sw.js` is registered from `registerServiceWorker()` at the end of the boot
+sequence in `app.js` (best-effort; skipped on non-HTTPS, non-localhost origins).
+
 ## Unwired modules
 
-Three things exist in the tree but are not connected. Check here before "fixing"
+One thing exists in the tree but is not connected. Check here before "fixing"
 behaviour that looks missing, and before assuming `OPTIMIZATION.md` is current:
 
 - **`server/products.js`** — a fuller catalog (Free/Creator/Studio/**Agency**
@@ -161,13 +189,6 @@ behaviour that looks missing, and before assuming `OPTIMIZATION.md` is current:
   array defined inside `server/index.js` and `CREDIT_PACKS` from
   `server/billing.js`. If you change pricing, change the live ones — or do the
   migration properly and delete the duplicate.
-- **`server/security.js`** — `securityHeaders`, `cors` and a fixed-window
-  `rateLimit`. Nothing imports it, and it has no test. The API currently runs
-  with no rate limiting, no CORS allowlist and no CSP/security headers. Wiring it
-  into `index.js` is a real (and worthwhile) change, not a no-op.
-- **`public/sw.js`** — the service worker is served and the manifest is linked
-  from `index.html`, but no code calls `navigator.serviceWorker.register`, so the
-  app is not actually offline-capable.
 
 ## Conventions
 
@@ -186,12 +207,13 @@ behaviour that looks missing, and before assuming `OPTIMIZATION.md` is current:
 
 ## Testing
 
-`npm test` runs `node --test test/**/*.test.js` — **93 tests across 9 files**, all
+`npm test` runs `node --test test/**/*.test.js` — **100 tests across 10 files**, all
 in demo mode with no keys or network:
 
 | File | Covers |
 |---|---|
-| `server.test.js` | every route over real HTTP, in-process on an ephemeral port |
+| `server.test.js` | every route over real HTTP against a spawned server |
+| `security.test.js` | headers/CSP, the CORS gate, and the rate limiter's budget, per-client isolation and window refill |
 | `auth.test.js` | hashing, token signing, credit buckets, referrals |
 | `billing.test.js` | signature verification, replay tolerance, webhook idempotency |
 | `ai.test.js` | `aiStatus`, demo passthrough, `parseLooseJSON` |
@@ -201,11 +223,21 @@ in demo mode with no keys or network:
 | `products.test.js` | catalog integrity (of the unwired `products.js`) |
 | `integration.test.js` | cross-module env handling |
 
-**Tests run the app in-process.** `server/index.js` exports `{ app, initStore }`
-and only calls `app.listen` when run directly, so `test/server.test.js` can
-listen on an ephemeral port. Keep it that way: `--experimental-test-coverage`
-instruments only the current process, so spawning the server as a child hides
-`index.js`, `billing.js` and `ai.js` from the report entirely.
+`server.test.js` **spawns the server as a child process** (`server/index.js` always
+calls `app.listen`; it does not export the app). Two consequences worth knowing:
+
+- `--experimental-test-coverage` instruments only the current process, so
+  **`server/index.js` is absent from the coverage report entirely** — the ~83%
+  overall figure covers the modules imported directly by unit tests, not the
+  routes. Don't read it as route coverage.
+- The whole file drives the API from one address, so it raises
+  `RATE_LIMIT_AI_MAX`/`RATE_LIMIT_AUTH_MAX` in the child's env to keep the
+  production budgets from throttling the suite. `security.test.js` covers the
+  limiter's real behaviour instead.
+
+Making `index.js` export `{ app, initStore }` and guard `app.listen` behind a
+run-directly check would let the suite listen in-process and put the routes back
+in the coverage report — a worthwhile follow-up, not done here.
 
 Add a test alongside any new route or logic.
 
