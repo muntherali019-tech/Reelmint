@@ -32,7 +32,14 @@ const api = async (method, route, { token, body } = {}) => {
 before(async () => {
   dataDir = mkdtempSync(path.join(tmpdir(), "reelmint-test-"));
   proc = spawn(process.execPath, [path.join(ROOT, "server", "index.js")], {
-    env: { ...process.env, PORT: String(PORT), DATA_DIR: dataDir, AUTH_SECRET: "test-secret" },
+    env: {
+      ...process.env,
+      PORT: String(PORT), DATA_DIR: dataDir, AUTH_SECRET: "test-secret",
+      // Every request in this file comes from 127.0.0.1, so the production
+      // per-IP budgets would throttle the suite itself. security.test.js
+      // covers the limiter's actual behaviour.
+      RATE_LIMIT_AI_MAX: "100000", RATE_LIMIT_AUTH_MAX: "100000",
+    },
     stdio: "ignore",
   });
   for (let i = 0; i < 40; i++) {

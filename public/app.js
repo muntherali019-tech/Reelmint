@@ -68,6 +68,16 @@ async function init() {
   if (USER) loadBrandKit();
   handleReturnFromCheckout();
   initReveal();
+  registerServiceWorker();
+}
+
+// sw.js caches the app shell (cache-first) and never caches /api/*, so the
+// studio opens offline. Registration is best-effort: an unsupported browser or
+// a blocked registration must not break boot.
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  if (location.protocol !== "https:" && location.hostname !== "localhost") return;
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
 
 // Reveal-on-scroll for the marketing sections.

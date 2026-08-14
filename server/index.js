@@ -29,6 +29,7 @@ import {
 } from "./billing.js";
 import { generateImage, imageProvider } from "./images.js";
 import { initStore, backend } from "./store.js";
+import { securityHeaders, cors, rateLimit } from "./security.js";
 import { PROMPTS } from "./prompts.js";
 import {
   demoStoryboard,
@@ -49,8 +50,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
 const app = express();
-// Behind Render's proxy — trust it so req.protocol is https (used in checkout URLs).
+// Behind Render's proxy — trust it so req.protocol is https (used in checkout URLs)
+// and so req.ip is the real client address the rate limiter counts against.
 app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
+// Security headers + CORS gate run before anything else, so they apply to the
+// static app and every API response including errors.
+app.use(securityHeaders);
+app.use(cors);
 
 // Wrap async handlers so a rejected promise becomes a clean 500 instead of a
 // hung request (Express 4 does not catch async errors on its own).
@@ -69,6 +77,28 @@ app.post(
 app.use(express.json({ limit: "20mb" }));
 app.use(attachUser);
 app.use(express.static(PUBLIC_DIR));
+
+// Every route that can reach a model, so a scripted client can't burn the
+// Anthropic/image budget. Listed by path rather than tagged per-route so a new
+// AI route is one line here and can't be forgotten halfway down the file.
+const AI_ROUTES = [
+  "/api/script", "/api/assistant", "/api/image", "/api/scan", "/api/repurpose",
+  "/api/captions", "/api/campaign", "/api/trends", "/api/ads", "/api/thumbnails",
+  "/api/article", "/api/carousel",
+];
+// Limits are env-tunable: a busy deploy raises them, and the test suite (which
+// drives the whole API from one address) raises them out of the way.
+const num = (name, fallback) => Number(process.env[name]) || fallback;
+app.use(AI_ROUTES, rateLimit({
+  windowMs: num("RATE_LIMIT_AI_WINDOW_MS", 60_000),
+  max: num("RATE_LIMIT_AI_MAX", 30),
+}));
+
+// Credential stuffing is the other budget: keep auth attempts slow.
+app.use(["/api/auth/signup", "/api/auth/login"], rateLimit({
+  windowMs: num("RATE_LIMIT_AUTH_WINDOW_MS", 15 * 60_000),
+  max: num("RATE_LIMIT_AUTH_MAX", 20),
+}));
 
 const NO_WATERMARK = process.env.REELMINT_NO_WATERMARK === "1";
 
