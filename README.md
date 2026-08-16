@@ -120,7 +120,9 @@ The server binds to `process.env.PORT` (Render sets it automatically).
   - **JSON file** (local/demo) — used when `DATABASE_URL` is absent, written to `DATA_DIR`.
   The Render blueprint provisions a free Postgres and wires `DATABASE_URL` automatically, so accounts and billing survive restarts and redeploys.
 - **Credits** — each plan has a monthly allowance (Free 5 · Creator 100 · Studio unlimited). Generating a storyboard spends 1 credit; the limit is enforced **server-side**. Anonymous visitors can still try the studio (no hard gate) so the demo stays open.
-- **Stripe** — set `STRIPE_SECRET_KEY`, `STRIPE_PRICE_CREATOR`, `STRIPE_PRICE_STUDIO`, and `STRIPE_WEBHOOK_SECRET`. The pricing buttons open a real Checkout session; the webhook (`/api/billing/webhook`, signature-verified) upgrades the plan on success and downgrades on cancellation. Point your Stripe webhook at `https://<your-app>/api/billing/webhook` for `checkout.session.completed`, `customer.subscription.created`, and `customer.subscription.deleted`.
+- **Stripe** — set **`STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`, and you are taking payments.** Nothing has to be created in the Stripe dashboard first: every plan and pack in `server/products.js` carries its own `amount`, and Checkout sessions are built from inline `price_data`. The pricing and credit-pack buttons open a real Checkout session; the webhook (`/api/billing/webhook`, signature-verified) upgrades the plan or grants the credits on success and downgrades on cancellation. Point your Stripe webhook at `https://<your-app>/api/billing/webhook` for `checkout.session.completed`, `customer.subscription.created`, and `customer.subscription.deleted`.
+
+  To change a price, edit `amount` (and the matching `price` display string) in `server/products.js`. If you would rather manage prices in the Stripe dashboard — for tax behaviour, currency variants or coupons — create a Price there and set the matching `STRIPE_PRICE_*` variable; it overrides the inline amount for that SKU only.
 
 ## Photoreal images
 
@@ -145,9 +147,11 @@ If a provider call fails it falls back to Smart Slides automatically.
 | `REELMINT_NO_WATERMARK` | `1` removes the free-tier watermark globally. |
 | `IMAGE_PROVIDER` / `OPENAI_API_KEY` / `IMAGE_MODEL` | OpenAI image generation. |
 | `IMAGE_API_URL` / `IMAGE_API_KEY` | Custom image generator. |
-| `STRIPE_SECRET_KEY` | Stripe API key. |
-| `STRIPE_PRICE_CREATOR` / `STRIPE_PRICE_STUDIO` | Stripe price IDs per plan. |
-| `STRIPE_WEBHOOK_SECRET` | Verifies incoming Stripe webhooks. |
+| `STRIPE_SECRET_KEY` | Stripe API key. On its own it turns on subscriptions **and** credit packs. |
+| `STRIPE_WEBHOOK_SECRET` | Verifies incoming Stripe webhooks. Required — the webhook fails closed without it. |
+| `STRIPE_PRICE_CREATOR` / `STRIPE_PRICE_STUDIO` | *Optional.* Dashboard Price IDs that override the inline plan amounts. |
+| `STRIPE_PRICE_PACK50` / `_PACK200` / `_PACK500` | *Optional.* Same, for the one-time credit packs. |
+| `STRIPE_WEBHOOK_TOLERANCE` | Max webhook signature age in seconds (default 300). |
 
 ## API
 

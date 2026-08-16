@@ -1,6 +1,7 @@
 // Accounts, password hashing, signed tokens, and monthly credit tracking.
 import crypto from "node:crypto";
 import { getUser, getUserById, saveUser, getUserByReferral } from "./store.js";
+import { PLAN_CREDITS } from "./products.js";
 
 const SECRET =
   process.env.AUTH_SECRET ||
@@ -15,8 +16,9 @@ if (!SECRET)
 
 const SECRET_KEY = SECRET || crypto.randomBytes(32).toString("hex");
 
-// Plans → monthly credit allowance (Infinity = unlimited).
-export const PLAN_CREDITS = { free: 5, creator: 100, studio: Infinity };
+// Plans → monthly credit allowance (Infinity = unlimited). Defined alongside
+// the plan catalog in products.js and re-exported here so the two can't drift.
+export { PLAN_CREDITS };
 
 // Referral reward — credits granted to BOTH parties when a referral converts.
 export const REFERRAL_BONUS = Number(process.env.REFERRAL_BONUS) || 10;

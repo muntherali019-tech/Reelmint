@@ -77,12 +77,31 @@ Never assume a backend in application code — always go through the exported
 `getUser*`/`saveUser` functions. Tests use the file backend via a temp
 `DATA_DIR`.
 
+**`server/products.js` is the single source of truth for everything for sale.**
+Plans (with `PLAN_CREDITS`) and one-time credit packs live there and nowhere
+else: `auth.js` re-exports `PLAN_CREDITS`, `billing.js` builds Checkout from it,
+and `/api/config` serves `catalog()` straight to the storefront. Don't
+re-declare a plan list in `index.js` — that duplication is what let an "agency"
+tier exist with no credit allowance, which `setPlan` would have silently
+no-opped after taking the money. Adding a SKU means editing products.js only;
+`catalog()` strips the server-only `stripePrice` field before it reaches the
+browser.
+
 **Billing uses the Stripe REST API directly** (`server/billing.js`, no Stripe
 SDK) and no-ops cleanly when env vars are absent (`stripeEnabled` /
 `creditPacksEnabled` gate the routes). Two flows: subscriptions (upgrade plan)
 and one-time credit packs (grant `bonusCredits`). The webhook
 (`/api/billing/webhook`) is **mounted before the JSON body parser** because
 signature verification needs the raw body — keep it first in `index.js`.
+
+**Going live requires only `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`.**
+`buildLineItem` sends inline `price_data` derived from each SKU's `amount`, so
+no Products or Prices have to be created in the Stripe dashboard first — that
+manual setup was the longest step between a finished build and a first payment.
+A `STRIPE_PRICE_*` env var, when set, overrides the inline amount for that SKU
+(`price` and `price_data` are mutually exclusive in the Stripe API — never send
+both). Keep display strings (`price`) in step with `amount`; `products.test.js`
+asserts they agree, because a drift there mis-prices a real sale.
 
 Two properties of the webhook are load-bearing and covered by
 `test/billing.test.js` — don't regress them:

@@ -25,8 +25,8 @@ import {
   createCheckout,
   createPackCheckout,
   handleWebhook,
-  CREDIT_PACKS,
 } from "./billing.js";
+import { catalog } from "./products.js";
 import { generateImage, imageProvider } from "./images.js";
 import { initStore, backend } from "./store.js";
 import { PROMPTS } from "./prompts.js";
@@ -90,10 +90,9 @@ app.get("/api/config", (req, res) => {
   res.json({
     ...aiStatus(),
     watermark: !NO_WATERMARK,
-    plans: PLANS,
+    ...catalog(),
     stripe: stripeEnabled,
     creditPacksEnabled,
-    creditPacks: CREDIT_PACKS.map(({ id, label, credits, price, best }) => ({ id, label, credits, price, best })),
     imageProvider,
     user: publicUser(req.user),
   });
@@ -498,37 +497,6 @@ app.use((err, _req, res, _next) => {
   if (res.headersSent) return;
   res.status(500).json({ error: "server_error" });
 });
-
-const PLANS = [
-  {
-    id: "free",
-    name: "Free",
-    price: "$0",
-    period: "forever",
-    credits: "5 videos / mo",
-    features: ["720p exports", "Reelmint watermark", "AI editor (basic)", "Smart Slide images", "Trend radar"],
-    cta: "Start free",
-  },
-  {
-    id: "creator",
-    name: "Creator",
-    price: "$19",
-    period: "/mo",
-    credits: "100 videos / mo",
-    features: ["1080p exports", "No watermark", "Voice AI editor", "Brand kit", "Campaign studio", "Scan & repurpose"],
-    cta: "Go Creator",
-    popular: true,
-  },
-  {
-    id: "studio",
-    name: "Studio",
-    price: "$49",
-    period: "/mo",
-    credits: "Unlimited videos",
-    features: ["4K-ready exports", "Team seats", "API access", "Priority rendering", "Custom voices", "Everything in Creator"],
-    cta: "Go Studio",
-  },
-];
 
 // Merge a user's brand palette (if any) into a design spec.
 function applyBrandPalette(design, user) {

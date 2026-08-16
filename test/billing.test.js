@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { CURRENCY, findPack, findPlan } from "../server/products.js";
 
 // The webhook is the only thing standing between a forged HTTP request and free
 // credits / a free plan upgrade, and it runs before any auth middleware. These
@@ -260,5 +261,61 @@ test("checkout helpers refuse to run when Stripe is not configured", async () =>
   await assert.rejects(
     () => billing.createPackCheckout({ user: { id: "u", email: "a@b.co" }, pack: "pack50", origin: "http://x" }),
     /not configured/i
+  );
+});
+
+/* ---------- line items (going live needs only a secret key) ---------- */
+
+// Checkout is built from inline `price_data` off each SKU's `amount`, so a new
+// Stripe account can take money without anyone hand-creating dashboard Prices.
+// These assert the exact params Stripe receives, without calling Stripe.
+
+test("a pack with no dashboard Price is charged inline, as a one-off", () => {
+  const item = billing.buildLineItem(findPack("pack200"));
+  assert.equal(item["line_items[0][quantity]"], "1");
+  assert.equal(item["line_items[0][price_data][currency]"], CURRENCY);
+  assert.equal(item["line_items[0][price_data][unit_amount]"], "2900");
+  assert.match(item["line_items[0][price_data][product_data][name]"], /Reelmint/);
+  assert.equal(item["line_items[0][price]"], undefined, "no Price ID should be sent");
+  assert.ok(
+    !Object.keys(item).some((k) => k.includes("recurring")),
+    "mode:payment rejects a recurring price"
+  );
+});
+
+test("a plan is charged inline with a recurring interval", () => {
+  const item = billing.buildLineItem(findPlan("creator"), { interval: "month" });
+  assert.equal(item["line_items[0][price_data][unit_amount]"], "1900");
+  assert.equal(item["line_items[0][price_data][recurring][interval]"], "month");
+});
+
+test("a configured dashboard Price overrides the inline amount", () => {
+  const item = billing.buildLineItem({ ...findPlan("studio"), stripePrice: "price_live_123" }, { interval: "month" });
+  assert.equal(item["line_items[0][price]"], "price_live_123");
+  assert.equal(item["line_items[0][quantity]"], "1");
+  assert.ok(
+    !Object.keys(item).some((k) => k.includes("price_data")),
+    "price and price_data are mutually exclusive in the Stripe API"
+  );
+});
+
+test("an unknown or unpriced SKU throws instead of charging zero", () => {
+  assert.throws(() => billing.buildLineItem(null), /unknown product/i);
+  assert.throws(() => billing.buildLineItem(findPlan("free")), /unknown product/i);
+  assert.throws(() => billing.buildLineItem({ id: "x", name: "X", amount: 0 }), /unknown product/i);
+});
+
+test("checkout rejects a plan or pack that is not in the catalog", async () => {
+  // These reject on the catalog lookup, before Stripe would be reached.
+  for (const plan of ["free", "agency", "", undefined]) {
+    await assert.rejects(
+      () => billing.createCheckout({ user: { id: "u", email: "a@b.co" }, plan, origin: "http://x" }),
+      /unknown plan|not configured/i,
+      `plan ${JSON.stringify(plan)} must not reach Stripe`
+    );
+  }
+  await assert.rejects(
+    () => billing.createPackCheckout({ user: { id: "u", email: "a@b.co" }, pack: "pack_nope", origin: "http://x" }),
+    /unknown pack|not configured/i
   );
 });

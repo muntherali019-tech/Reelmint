@@ -46,12 +46,11 @@ services:
         sync: false
       - key: IMAGE_API_KEY
         sync: false
-      # Billing (optional): Stripe keys + price IDs + webhook secret.
+      # Billing: these two switch on subscriptions AND one-time credit packs.
+      # Prices live in server/products.js and are sent to Checkout inline, so
+      # nothing needs creating in the Stripe dashboard first. Set STRIPE_PRICE_*
+      # only if you want a dashboard Price to override a SKU's inline amount.
       - key: STRIPE_SECRET_KEY
-        sync: false
-      - key: STRIPE_PRICE_CREATOR
-        sync: false
-      - key: STRIPE_PRICE_STUDIO
         sync: false
       - key: STRIPE_WEBHOOK_SECRET
         sync: false

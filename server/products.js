@@ -1,13 +1,19 @@
 // Reelmint's single source of truth for everything that's for sale.
 //
-// Four revenue lines live here:
-//   1. plans        — recurring subscriptions (Free → Agency)
-//   2. creditPacks  — one-time credit top-ups (pay-as-you-go, no subscription)
-//   3. addOns       — one-time upgrades you bolt onto any plan
-//   4. templates    — the Template Marketplace (premium prompt/brand packs)
+// Two revenue lines live here:
+//   1. PLANS        — recurring subscriptions (Free / Creator / Studio)
+//   2. CREDIT_PACKS — one-time credit top-ups (pay-as-you-go, no subscription)
 //
-// Prices are display strings; the real charge amount lives in `amount` (USD
-// cents) so the one-time Stripe Checkout can be built without a dashboard Price.
+// Every paid SKU carries `amount` (in `CURRENCY` minor units) so a Checkout
+// session can be built from inline `price_data` — meaning the server can charge
+// with nothing configured but `STRIPE_SECRET_KEY`. A dashboard Price ID may
+// still be supplied per SKU (`stripePrice`) to override the inline amount; see
+// `buildLineItem` in billing.js.
+//
+// `price`/`period` are display strings for the storefront and must stay in sync
+// with `amount` — products.test.js asserts that they do.
+
+export const CURRENCY = "usd";
 
 // ---------------- Subscriptions ----------------
 export const PLANS = [
@@ -16,8 +22,15 @@ export const PLANS = [
     name: "Free",
     price: "$0",
     period: "forever",
+    amount: 0,
     credits: "5 videos / mo",
-    features: ["720p exports", "Reelmint watermark", "AI editor (basic)", "Smart Slide images"],
+    features: [
+      "720p exports",
+      "Reelmint watermark",
+      "AI editor (basic)",
+      "Smart Slide images",
+      "Trend radar",
+    ],
     cta: "Start free",
   },
   {
@@ -25,124 +38,111 @@ export const PLANS = [
     name: "Creator",
     price: "$19",
     period: "/mo",
+    amount: 1900,
+    interval: "month",
     credits: "100 videos / mo",
-    features: ["1080p exports", "No watermark", "Voice AI editor", "Brand kit", "Scan & repurpose"],
+    features: [
+      "1080p exports",
+      "No watermark",
+      "Voice AI editor",
+      "Brand kit",
+      "Campaign studio",
+      "Scan & repurpose",
+    ],
     cta: "Go Creator",
     popular: true,
+    stripePrice: process.env.STRIPE_PRICE_CREATOR || "",
   },
   {
     id: "studio",
     name: "Studio",
     price: "$49",
     period: "/mo",
+    amount: 4900,
+    interval: "month",
     credits: "Unlimited videos",
-    features: ["4K-ready exports", "Team seats", "API access", "Priority rendering", "Custom voices"],
-    cta: "Go Studio",
-  },
-  {
-    id: "agency",
-    name: "Agency",
-    price: "$149",
-    period: "/mo",
-    credits: "Unlimited + client seats",
     features: [
-      "Everything in Studio",
-      "10 client workspaces",
-      "White-label exports",
-      "Bulk generation queue",
-      "Dedicated support",
+      "4K-ready exports",
+      "Team seats",
+      "API access",
+      "Priority rendering",
+      "Custom voices",
+      "Everything in Creator",
     ],
-    cta: "Go Agency",
+    cta: "Go Studio",
+    stripePrice: process.env.STRIPE_PRICE_STUDIO || "",
   },
 ];
 
 // Monthly credit allowance per plan (Infinity = unlimited). Kept here so auth.js
-// and the catalog can never drift apart.
+// and the storefront can never drift apart — auth.js re-exports this.
 export const PLAN_CREDITS = {
   free: 5,
   creator: 100,
   studio: Infinity,
-  agency: Infinity,
 };
 
-// ---------------- One-time credit packs (Revenue feature #1) ----------------
-// Buy credits outright — no subscription required. Great for occasional users
-// and for paid users who blow through their monthly allowance.
+// Plans a user can actually pay for (Free is not a checkout).
+export const PAID_PLANS = PLANS.filter((p) => p.amount > 0);
+
+export function findPlan(id) {
+  return PLANS.find((p) => p.id === id) || null;
+}
+
+// ---------------- One-time credit packs ----------------
+// Buy credits outright — no subscription required. The impulse-purchase path:
+// it converts occasional users, and catches paid users who burn through their
+// monthly allowance mid-campaign.
 export const CREDIT_PACKS = [
-  { id: "pack_starter", name: "Starter pack", credits: 50, amount: 900, price: "$9", blurb: "50 extra render credits" },
-  { id: "pack_pro", name: "Pro pack", credits: 200, amount: 2900, price: "$29", blurb: "200 credits · best value", popular: true },
-  { id: "pack_bulk", name: "Bulk pack", credits: 500, amount: 5900, price: "$59", blurb: "500 credits for a big campaign" },
+  {
+    id: "pack50",
+    label: "50 credits",
+    credits: 50,
+    amount: 900,
+    price: "$9",
+    blurb: "50 extra render credits",
+    stripePrice: process.env.STRIPE_PRICE_PACK50 || "",
+  },
+  {
+    id: "pack200",
+    label: "200 credits",
+    credits: 200,
+    amount: 2900,
+    price: "$29",
+    best: true,
+    blurb: "200 credits · best value",
+    stripePrice: process.env.STRIPE_PRICE_PACK200 || "",
+  },
+  {
+    id: "pack500",
+    label: "500 credits",
+    credits: 500,
+    amount: 5900,
+    price: "$59",
+    blurb: "500 credits for a big campaign",
+    stripePrice: process.env.STRIPE_PRICE_PACK500 || "",
+  },
 ];
 
-// ---------------- One-time add-ons ----------------
-export const ADDONS = [
-  { id: "addon_seat", name: "Extra team seat", amount: 900, price: "$9", period: "/mo", blurb: "Add a collaborator to your workspace" },
-  { id: "addon_brandkit", name: "Brand kit unlock", amount: 1900, price: "$19", blurb: "Lock in fonts, colors & logo across every export" },
-  { id: "addon_priority", name: "Priority rendering", amount: 1500, price: "$15", period: "/mo", blurb: "Skip the queue on busy days" },
-];
-
-// ---------------- Template Marketplace (Revenue feature #2) ----------------
-// Premium, ready-to-mint content packs. One-time purchase unlocks the pack for
-// the buyer's account. `creatorShare` models a marketplace split so third-party
-// creators could sell here too (platform keeps the remainder).
-export const TEMPLATES = [
-  {
-    id: "tpl_viral_hooks",
-    name: "50 Viral Hooks Pack",
-    category: "Short-form",
-    amount: 1200,
-    price: "$12",
-    creatorShare: 0.7,
-    blurb: "50 battle-tested opening lines that stop the scroll.",
-    tags: ["TikTok", "Reels", "Shorts"],
-  },
-  {
-    id: "tpl_product_launch",
-    name: "Product Launch Kit",
-    category: "E-commerce",
-    amount: 2400,
-    price: "$24",
-    creatorShare: 0.7,
-    blurb: "Announcement, demo, testimonial & sale storyboards.",
-    tags: ["Ads", "DTC", "Launch"],
-    popular: true,
-  },
-  {
-    id: "tpl_faceless",
-    name: "Faceless Channel Bundle",
-    category: "Automation",
-    amount: 3900,
-    price: "$39",
-    creatorShare: 0.7,
-    blurb: "30 days of faceless video scripts + voiceover styles.",
-    tags: ["YouTube", "Passive", "Bulk"],
-  },
-  {
-    id: "tpl_real_estate",
-    name: "Real Estate Reels",
-    category: "Local biz",
-    amount: 1900,
-    price: "$19",
-    creatorShare: 0.7,
-    blurb: "Listing tours, market updates & agent intros.",
-    tags: ["Realtor", "Local", "Tour"],
-  },
-];
+export function findPack(id) {
+  return CREDIT_PACKS.find((p) => p.id === id) || null;
+}
 
 // Flat lookup so a webhook / purchase route can resolve any SKU by id.
-const ALL = [...CREDIT_PACKS, ...ADDONS, ...TEMPLATES];
-export const PRODUCTS_BY_ID = Object.fromEntries(ALL.map((p) => [p.id, p]));
+export const PRODUCTS_BY_ID = Object.fromEntries(
+  [...PAID_PLANS, ...CREDIT_PACKS].map((p) => [p.id, p])
+);
 
 export function findProduct(id) {
   return PRODUCTS_BY_ID[id] || null;
 }
 
-// Everything the storefront needs in one payload.
+// What the storefront needs, minus the server-only `stripePrice` field.
+const strip = ({ stripePrice, ...rest }) => rest;
+
 export function catalog() {
   return {
-    plans: PLANS,
-    creditPacks: CREDIT_PACKS,
-    addOns: ADDONS,
-    templates: TEMPLATES,
+    plans: PLANS.map(strip),
+    creditPacks: CREDIT_PACKS.map(strip),
   };
 }
